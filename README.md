@@ -1,0 +1,60 @@
+# BrewScale Weight Log
+
+A single-page web app that logs **weight** and **flow rate (g/s)** from a Bluetooth LE kitchen scale, straight in the
+browser. No server, no account, no tracking: everything stays on your device until you download a CSV.
+
+It was made for a DIY scale (ESP32-C3 + HX711 load cell amp) used for pour-over coffee, but any BLE device that sends
+the 7-byte packet below will work.
+
+## Features
+- Live weight and flow readouts, two charts (30 s to 5 min windows)
+- Smoothing: moving average over 1 (off), 3, 5 or 10 samples, with a live noise readout
+- "Zero (view only)" button: it only changes what the page shows and logs, the scale is never written to
+- Log with Start/Stop, CSV download, optional label in the file name
+- Reconnects by itself if the Bluetooth link drops
+- `?demo` in the URL shows simulated data, no scale needed
+
+## Browser support
+Web Bluetooth is needed, on an `https://` page (or `http://localhost`):
+
+| Platform | Works? |
+|---|---|
+| Chrome / Edge on Windows, macOS, Linux, ChromeOS | yes |
+| Chrome on Android (phone or tablet) | yes |
+| Safari or Chrome on iPhone / iPad | no: iOS browsers use WebKit, which has no Web Bluetooth. The third-party **Bluefy** browser can open this page |
+| Firefox | no |
+
+The scale accepts one connection at a time, so disconnect other devices from it first.
+
+## The Bluetooth interface this page expects
+Device name `BrewScale`; service `b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001`; characteristic
+`b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001` (read + notify), 7 bytes, little endian:
+
+| Bytes | Type | Meaning |
+|---|---|---|
+| 0-3 | int32 | weight in 0.01 g |
+| 4-5 | uint16 | sequence number (wraps), used to count lost packets |
+| 6 | uint8 | flags: bit0 tared, bit1 calibrated, bit2 no data from the load cell amp |
+
+To use another device, change the two UUID constants at the end of `core.js` and the `name` filter in `index.html`.
+The page only subscribes to notifications and never writes to the device.
+
+## Flow rate
+Flow = (mean weight of the last 0.5 s) - (mean weight 1.0 to 1.5 s earlier), in g/s, computed from the smoothed weight
+and real arrival times.
+
+## CSV
+`time_s,weight_g,flow_gps,raw_g,seq,flags`: `weight_g` is smoothed and after "Zero (view only)", `raw_g` is what the scale
+sent. The first 1.5 s of a log have no flow value. The file name contains the label, the smoothing and the time.
+
+## Run it
+- Hosted on GitHub Pages: open the Pages URL of this repository in a supported browser.
+- Locally: `python3 -m http.server 8101` in this folder, then open http://localhost:8101
+- Tests (no dependencies): `node test.js`
+
+## Privacy
+The page makes no network requests except loading its own files. It stores two settings (smoothing and the file label)
+in the browser's local storage. Logged data is kept in memory until you download or clear it.
+
+## License
+MIT, see `LICENSE`.

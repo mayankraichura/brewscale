@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Weight Log</title>
+<style>
+:root{--bg:#12100E;--card:#1C1916;--line:#2A2622;--tx:#F4EFE8;--mu:#9A9085;--ac:#E8955A;--w:#6FB1E0;--ok:#7BC47F;--bad:#E2735C}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#F6F1EA;--card:#FFFFFF;--line:#E4DCD0;--tx:#241F1A;--mu:#6F665B;--ac:#C8672B;--w:#2F7DB5;--ok:#2F8F4A;--bad:#B8432C}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,sans-serif;min-height:100vh}
+main{max-width:1100px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 24px 16px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{justify-content:space-between}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
+.lab{font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.08em}
+.num{font-variant-numeric:tabular-nums;font-weight:600;line-height:1}
+.big{font-size:clamp(48px,11vw,96px)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:560px){.grid{grid-template-columns:1fr}}
+button,select{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;min-height:44px;cursor:pointer}
+button.p{background:var(--ac);border-color:var(--ac);color:#12100E;font-weight:650}
+button:disabled{opacity:.45;cursor:default}
+.pill{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mu)}
+.dot.on{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.rec{background:var(--bad);animation:b 1s infinite}
+@keyframes b{50%{opacity:.25}}
+canvas{width:100%;display:block}
+#cw{height:230px}#cf{height:170px}
+.note{font-size:13px;color:var(--mu)}
+.neg{color:var(--bad)}
+</style></head><body>
+<main>
+ <div class="row spread">
+  <h1>Weight Log <span class="note" id="mode"></span></h1>
+  <div class="row">
+   <div class="pill"><span class="dot" id="cd"></span><span id="cs">Not connected</span></div>
+   <div class="pill"><span id="hz">0.0</span> Hz · lost <span id="lost">0</span></div>
+  </div>
+ </div>
+
+ <div class="card row spread">
+  <div class="row">
+   <button class="p" id="connect">Connect to BrewScale</button>
+   <label class="note">Smoothing <select id="sm"><option value="1">Off</option><option value="3">3 samples (0.3 s)</option><option value="5">5 samples (0.5 s)</option><option value="10">10 samples (1 s)</option></select></label>
+   <button id="zero" disabled title="Only changes what this page shows and logs; the scale is not touched">Zero (view only)</button>
+  </div>
+  <div class="note" id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
+ </div>
+
+ <div class="grid">
+  <div class="card"><div class="lab">Weight</div><div><span class="num big" id="wv">--</span> <span class="note">g</span></div><div class="note">noise (last 5 s): <span id="nz">--</span> g</div></div>
+  <div class="card"><div class="lab">Flow</div><div><span class="num big" id="fv">--</span> <span class="note">g/s</span></div></div>
+ </div>
+
+ <div class="card">
+  <div class="row spread" style="margin-bottom:6px"><span class="lab">Weight (g)</span>
+   <label class="note">Window <select id="win"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option><option value="0">All</option></select></label></div>
+  <canvas id="cw"></canvas>
+  <div class="lab" style="margin:10px 0 6px">Flow (g/s)</div>
+  <canvas id="cf"></canvas>
+ </div>
+
+ <div class="card row spread">
+  <div class="row">
+   <input id="label" type="text" maxlength="24" placeholder="Label (for the file name)" aria-label="Label for the CSV file name" style="min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--tx);padding:0 12px;font:inherit;width:200px">
+   <button class="p" id="rec" disabled>Start log</button>
+   <button id="dl" disabled>Download CSV</button>
+   <button id="clear" disabled>Clear</button>
+  </div>
+  <div class="row"><span class="dot" id="rd"></span><span id="rs" class="note">Log is empty</span></div>
+ </div>
+ <div class="note">Read-only: this page only listens to the scale and sends it nothing. Data stays in this browser until you download it. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
+</main>
+<script src="core.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const DEMO=new URLSearchParams(location.search).has('demo');
+const flowCalc=new WL.FlowCalc(),seqT=new WL.SeqTracker(),rate=new WL.RateMeter(5);
+let smN=3;try{smN=+localStorage.getItem('wl.sm')||3}catch(e){}
+let ma=new WL.MovingAvg(smN);
+let buf=[];                 // rolling live samples {t,g,f}   (t = seconds since the page loaded)
+let rec=[],logging=false,logT0=0,offset=0,lastRaw=null,connected=false;
+const T0=performance.now()/1000,now=()=>performance.now()/1000-T0;
+
+// ---- one sample arrives (from Bluetooth or the demo) ----
+function onSample(p){
+ const t=now();
+ rate.feed(t);seqT.feed(p.seq);
+ const raw=p.g,g=ma.push(raw==null?null:raw-offset),f=flowCalc.push(t,g);   // weight is smoothed, flow comes from the smoothed weight
+ lastRaw=raw;
+ buf.push({t,g,f});
+ if(buf.length>7000)buf.splice(0,buf.length-6000);
+ if(logging)rec.push({t:t-logT0,g,f,raw,seq:p.seq,flags:p.flags});
+ dirty=true;
+}
+
+// ---- readouts + charts ----
+let dirty=false;
+function readouts(){
+ const l=buf[buf.length-1];
+ if(!l||now()-l.t>2){$('wv').textContent='--';$('fv').textContent='--'}
+ else{$('wv').textContent=l.g==null?'--':l.g.toFixed(1);$('wv').classList.toggle('neg',l.g!=null&&l.g<-0.5);
+  $('fv').textContent=l.f==null?'--':(l.f<=-0.05?'−':'')+Math.abs(l.f).toFixed(1)}
+ const ws=buf.filter(p=>p.g!=null&&p.t>now()-5).map(p=>p.g),nz=WL.noiseSd(ws);$('nz').textContent=nz==null?'--':nz.toFixed(2);
+ $('hz').textContent=rate.hz().toFixed(1);$('lost').textContent=seqT.lost;
+ $('zero').disabled=!(connected||DEMO)||lastRaw==null;
+ $('rec').disabled=!(connected||DEMO)&&!logging;
+ $('dl').disabled=!rec.length;$('clear').disabled=!rec.length||logging;
+ $('rd').className='dot'+(logging?' rec':'');
+ $('rs').textContent=logging?`Logging… ${rec.length} samples, ${(rec[rec.length-1]||{t:0}).t.toFixed(0)} s`:rec.length?`${rec.length} samples, ${rec[rec.length-1].t.toFixed(1)} s (stopped)`:'Log is empty';
+ $('rec').textContent=logging?'Stop log':'Start log';
+}
+function setupCanvas(c){const d=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
+ if(c.width!==Math.round(w*d)||c.height!==Math.round(h*d)){c.width=Math.round(w*d);c.height=Math.round(h*d)}
+ const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);return[x,w,h]}
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function drawChart(c,key,color,zeroLine,minSpan){
+ const[x,W,H]=setupCanvas(c);if(!W)return;
+ const win=+$('win').value,tn=now();let t1=tn,t0=win?tn-win:(buf.length?buf[0].t:tn-60);
+ const pts=buf.filter(p=>p.t>=t0&&p[key]!=null);
+ let lo=Infinity,hi=-Infinity;for(const p of pts){lo=Math.min(lo,p[key]);hi=Math.max(hi,p[key])}
+ if(!pts.length){lo=0;hi=minSpan}
+ if(zeroLine){lo=Math.min(lo,0);hi=Math.max(hi,0)}
+ if(hi-lo<minSpan){const m=(hi+lo)/2;lo=m-minSpan/2;hi=m+minSpan/2}
+ const pad=(hi-lo)*.08;lo-=pad;hi+=pad;
+ const L=44,T=6,B=18,PW=W-L-8,PH=H-T-B,px=t=>L+(t-t0)/(t1-t0)*PW,py=v=>T+(1-(v-lo)/(hi-lo))*PH;
+ x.font='11px system-ui,sans-serif';x.fillStyle=css('--mu');x.strokeStyle=css('--line');x.lineWidth=1;
+ const step=niceStep((hi-lo)/4);x.textAlign='right';x.textBaseline='middle';
+ for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step){const y=Math.round(py(v))+.5;x.beginPath();x.moveTo(L,y);x.lineTo(L+PW,y);x.stroke();x.fillText(+v.toFixed(2),L-6,y)}
+ x.textBaseline='alphabetic';x.textAlign='center';
+ const ts=niceStep((t1-t0)/5);for(let k=0;t1-k*ts>=t0;k++)x.fillText(fmtT(-k*ts),Math.max(px(t1-k*ts),L+10),H-3);   // labels count back from now
+ if(zeroLine){x.strokeStyle=css('--mu');x.setLineDash([3,4]);x.beginPath();x.moveTo(L,py(0));x.lineTo(L+PW,py(0));x.stroke();x.setLineDash([])}
+ x.strokeStyle=color;x.lineWidth=2;x.lineJoin='round';x.beginPath();let on=false;
+ for(const p of pts){const X=px(p.t),Y=py(p[key]);on?x.lineTo(X,Y):x.moveTo(X,Y);on=true}x.stroke();
+ if(pts.length){const p=pts[pts.length-1];x.fillStyle=color;x.beginPath();x.arc(px(p.t),py(p[key]),4,0,7);x.fill()}
+}
+function niceStep(s){const p=Math.pow(10,Math.floor(Math.log10(s))),m=s/p;return(m<1.5?1:m<3.5?2:m<7.5?5:10)*p}
+function fmtT(d){const a=Math.round(-d);return a===0?'now':a>=60?`−${Math.floor(a/60)}:${String(a%60).padStart(2,'0')}`:`−${a} s`}
+function frame(){if(dirty||DEMO){dirty=false;readouts();drawChart($('cw'),'g',css('--w'),false,5);drawChart($('cf'),'f',css('--ac'),true,4)}requestAnimationFrame(frame)}
+setInterval(readouts,500);   // keeps Hz / status fresh when no data arrives
+
+// ---- Bluetooth (Chrome, secure context: https or localhost) ----
+let dev=null,reconnects=0;
+function status(text,cls){$('cs').textContent=text;$('cd').className='dot '+(cls||'')}
+async function openGatt(){
+ const server=await dev.gatt.connect();
+ const svc=await server.getPrimaryService(WL.SVC);
+ const ch=await svc.getCharacteristic(WL.WEIGHT);
+ ch.addEventListener('characteristicvaluechanged',e=>{const p=WL.parsePacket(e.target.value);if(p)onSample(p)});
+ await ch.startNotifications();               // the only thing this page asks of the scale
+ connected=true;reconnects=0;flowCalc.reset();seqT.reset();status('Connected: '+(dev.name||'BrewScale'),'on');$('connect').textContent='Disconnect';
+}
+async function onDisconnected(){
+ connected=false;status('Connection lost: reconnecting…','bad');
+ while(!connected&&dev&&reconnects<40){reconnects++;await new Promise(r=>setTimeout(r,2000));
+  try{await openGatt();return}catch(e){status(`Reconnecting (${reconnects})…`,'bad')}}
+ if(!connected){status('Not connected','');$('connect').textContent='Connect to BrewScale'}
+}
+async function connect(){
+ if(!navigator.bluetooth){status('This browser has no Web Bluetooth: use Chrome','bad');return}
+ if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;status('Not connected','');$('connect').textContent='Connect to BrewScale';return}
+ try{
+  status('Choose BrewScale in the dialog…','');
+  dev=await navigator.bluetooth.requestDevice({filters:[{services:[WL.SVC]},{name:'BrewScale'}],optionalServices:[WL.SVC]});
+  dev.addEventListener('gattserverdisconnected',onDisconnected);
+  status('Connecting…','');await openGatt();
+ }catch(e){status(e.name==='NotFoundError'?'No device chosen':'Failed: '+e.message,'bad');dev=null;
+  if(/Unsupported device|GATT operation failed|already/i.test(e.message))$('hint').textContent='If it keeps failing: the brewer board may hold the connection. Switch it off and try again.'}
+}
+$('connect').onclick=connect;
+
+// ---- zero (view only), logging ----
+$('zero').onclick=()=>{if(lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.reset()}};
+$('sm').value=String(smN);if($('sm').value!==String(smN)){smN=3;$('sm').value='3'}
+$('sm').onchange=()=>{smN=+$('sm').value;ma=new WL.MovingAvg(smN);flowCalc.reset();try{localStorage.setItem('wl.sm',String(smN))}catch(e){}};
+$('rec').onclick=()=>{
+ if(logging){logging=false;return}
+ rec=[];logT0=now();logging=true;dirty=true;
+};
+function csvName(d=new Date()){
+ const z=n=>String(n).padStart(2,'0'),lab=($('label').value||'').trim().replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24);
+ return `weightlog-${lab?lab+'-':''}${smN===1?'raw':'ma'+smN}-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.csv`}
+try{$('label').value=localStorage.getItem('wl.label')||''}catch(e){}
+$('label').oninput=()=>{try{localStorage.setItem('wl.label',$('label').value)}catch(e){}};
+$('dl').onclick=()=>{
+ const name=csvName();
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([WL.toCsv(rec)],{type:'text/csv'}));a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+$('clear').onclick=()=>{rec=[];dirty=true};
+$('win').onchange=()=>{dirty=true};
+addEventListener('resize',()=>{dirty=true});
+addEventListener('beforeunload',e=>{if(logging||rec.length){e.preventDefault();e.returnValue=''}});
+
+// ---- demo (?demo): a simulated brew with five ~50 g pours, so the page can be tried without the scale ----
+if(DEMO){
+ $('mode').textContent='· demo data';$('connect').disabled=true;$('connect').textContent='Demo running';status('Demo','on');
+ let seq=0,w=0,tt=0;const pours=[[2,12],[47,56],[67,75],[87,95],[106,113]];
+ setInterval(()=>{tt+=.1;let r=0;for(const[a,b]of pours)if(tt>=a&&tt<b)r=51/(b-a);w+=r*.1;
+  const noise=(Math.random()-.5)*.6;
+  onSample({seq:seq++&0xFFFF,flags:3,noData:false,tared:true,calibrated:true,g:+(w+noise-.3).toFixed(2)})},100);
+}
+requestAnimationFrame(frame);readouts();
+</script></body></html>
