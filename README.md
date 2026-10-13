@@ -48,9 +48,13 @@ and real arrival times.
 sent. The first 1.5 s of a log have no flow value. The file name contains the label, the smoothing and the time.
 
 ## Run it
-- Hosted on GitHub Pages: open the Pages URL of this repository in a supported browser.
+- **Live page: https://mayankraichura.github.io/brewscale/** (open it in a supported browser; add `?demo` to try it without a scale)
 - Locally: `python3 -m http.server 8101` in this folder, then open http://localhost:8101
 - Tests (no dependencies): `node test.js`
+
+## Saving the CSV
+- Desktop: **Download CSV** saves a file.
+- iPad / iPhone (Bluefy): **Download CSV** opens the share sheet, choose *Save to Files*. If that is not offered, **Copy CSV** puts the text on the clipboard (paste it into Notes or Files), and a text box appears as a last resort.
 
 ## Privacy
 The page makes no network requests except loading its own files. It stores two settings (smoothing and the file label)

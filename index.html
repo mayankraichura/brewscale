@@ -65,9 +65,15 @@ canvas{width:100%;display:block}
    <input id="label" type="text" maxlength="24" placeholder="Label (for the file name)" aria-label="Label for the CSV file name" style="min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--tx);padding:0 12px;font:inherit;width:200px">
    <button class="p" id="rec" disabled>Start log</button>
    <button id="dl" disabled>Download CSV</button>
+   <button id="cp" disabled>Copy CSV</button>
    <button id="clear" disabled>Clear</button>
   </div>
   <div class="row"><span class="dot" id="rd"></span><span id="rs" class="note">Log is empty</span></div>
+ </div>
+ <div class="card" id="csvbox" hidden>
+  <div class="note" id="csvmsg" style="margin-bottom:8px"></div>
+  <textarea id="csvtxt" readonly rows="8" style="width:100%;font:12px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:10px"></textarea>
+  <div class="row" style="margin-top:8px"><button id="csvsel">Select all</button><button id="csvclose">Close</button></div>
  </div>
  <div class="note">Read-only: this page only listens to the scale and sends it nothing. Data stays in this browser until you download it. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
 </main>
@@ -105,7 +111,7 @@ function readouts(){
  $('hz').textContent=rate.hz().toFixed(1);$('lost').textContent=seqT.lost;
  $('zero').disabled=!(connected||DEMO)||lastRaw==null;
  $('rec').disabled=!(connected||DEMO)&&!logging;
- $('dl').disabled=!rec.length;$('clear').disabled=!rec.length||logging;
+ $('dl').disabled=!rec.length;$('cp').disabled=!rec.length;$('clear').disabled=!rec.length||logging;
  $('rd').className='dot'+(logging?' rec':'');
  $('rs').textContent=logging?`Logging… ${rec.length} samples, ${(rec[rec.length-1]||{t:0}).t.toFixed(0)} s`:rec.length?`${rec.length} samples, ${rec[rec.length-1].t.toFixed(1)} s (stopped)`:'Log is empty';
  $('rec').textContent=logging?'Stop log':'Start log';
@@ -182,9 +188,32 @@ function csvName(d=new Date()){
  return `weightlog-${lab?lab+'-':''}${smN===1?'raw':'ma'+smN}-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.csv`}
 try{$('label').value=localStorage.getItem('wl.label')||''}catch(e){}
 $('label').oninput=()=>{try{localStorage.setItem('wl.label',$('label').value)}catch(e){}};
-$('dl').onclick=()=>{
- const name=csvName();
- const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([WL.toCsv(rec)],{type:'text/csv'}));a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+// Saving a CSV. Desktop browsers: a normal file download. iPad/iPhone browsers (Bluefy, Safari) ignore the
+// download attribute, so there the share sheet is used (Save to Files). Copy CSV and the text box always work.
+let IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function showCsv(msg){$('csvmsg').textContent=msg;$('csvtxt').value=WL.toCsv(rec);$('csvbox').hidden=false;$('csvtxt').focus();$('csvtxt').select();$('csvbox').scrollIntoView({block:'nearest'})}
+async function saveCsv(){
+ const name=csvName(),text=WL.toCsv(rec);
+ if(IOS&&navigator.share&&navigator.canShare){
+  for(const type of['text/csv','text/plain']){
+   const file=new File([text],name,{type});
+   if(!navigator.canShare({files:[file]}))continue;
+   try{await navigator.share({files:[file],title:name});return}catch(e){if(e.name==='AbortError')return}
+  }
+  showCsv('This browser cannot save files. Copy the text below and paste it into Notes or Files, then name it '+name);return;
+ }
+ try{
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+ }catch(e){showCsv('Download failed. Copy the text below and save it as '+name)}
+}
+async function copyCsv(){
+ const text=WL.toCsv(rec);
+ try{await navigator.clipboard.writeText(text);$('rs').textContent='CSV copied ('+rec.length+' samples)';return}catch(e){}
+ showCsv('Copy was blocked. Select all and copy the text below.');
+}
+$('dl').onclick=saveCsv;$('cp').onclick=copyCsv;
+$('csvsel').onclick=()=>{$('csvtxt').focus();$('csvtxt').select()};$('csvclose').onclick=()=>{$('csvbox').hidden=true};
 $('clear').onclick=()=>{rec=[];dirty=true};
 $('win').onchange=()=>{dirty=true};
 addEventListener('resize',()=>{dirty=true});
