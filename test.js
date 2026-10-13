@@ -52,4 +52,31 @@ assert.ok(Math.abs(WL.noiseSd([0, 1, 2, 3, 4, 5, 6, 7])) < 1e-9, 'a straight ram
 // 5. CSV
 const out = WL.toCsv([{ t: 0, g: 0, f: null, raw: 1.5, seq: 1, flags: 3 }, { t: 0.1, g: 0.5, f: 0.25, raw: 2, seq: 2, flags: 3 }]);
 assert.strictEqual(out, 'time_s,weight_g,flow_gps,raw_g,seq,flags\n0.00,0.00,,1.50,1,3\n0.10,0.50,0.25,2.00,2,3\n');
+// 6. timer format
+assert.strictEqual(WL.fmtTimer(0), '0:00.0'); assert.strictEqual(WL.fmtTimer(83.4), '1:23.4'); assert.strictEqual(WL.fmtTimer(599.99), '9:59.9'); assert.strictEqual(WL.fmtTimer(-3), '0:00.0');
+assert.strictEqual(WL.rowsToCsv([[0, 0, null, 1.5, 1, 3]]), 'time_s,weight_g,flow_gps,raw_g,seq,flags\n0.00,0.00,,1.50,1,3\n');
+
+// 7. brew storage with a fake localStorage (with a size limit)
+class Mem { constructor(limit) { this.m = new Map(); this.limit = limit || Infinity; }
+  getItem(k) { return this.m.has(k) ? this.m.get(k) : null; }
+  setItem(k, v) { const size = [...this.m].filter(([kk]) => kk !== k).reduce((a, [, vv]) => a + vv.length, 0) + v.length; if (size > this.limit) throw new Error('QuotaExceededError'); this.m.set(k, v); }
+  removeItem(k) { this.m.delete(k); } }
+const mk = (id, n) => ({ id, start: Date.now(), label: 'x', sm: 3, dur: n / 10, rows: Array.from({ length: n }, (_, i) => [i / 10, i, null, i, i, 3]) });
+let st = new WL.BrewStore(new Mem(), 3);
+assert.ok(st.save(mk('a', 50)) && st.save(mk('b', 50)) && st.save(mk('c', 50)) && st.save(mk('d', 50)));
+assert.deepStrictEqual(st.index().map(m => m.id), ['d', 'c', 'b'], 'newest first, max 3 brews, oldest dropped');
+assert.strictEqual(st.get('a'), null); assert.strictEqual(st.get('d').rows.length, 50);
+st.remove('c'); assert.deepStrictEqual(st.index().map(m => m.id), ['d', 'b']);
+assert.strictEqual(st.index()[0].n, 50); assert.strictEqual(st.index()[0].finalG, 49);
+st.saveActive(mk('live', 20)); assert.strictEqual(st.loadActive().rows.length, 20); st.clearActive(); assert.strictEqual(st.loadActive(), null);
+st.clearAll(); assert.deepStrictEqual(st.index(), []);
+// full storage: the oldest brews go first, the new one is kept; a brew that can never fit is refused
+const one = JSON.stringify(mk('z', 200)).length;
+st = new WL.BrewStore(new Mem(one * 2 + 400), 20);
+st.save(mk('a', 200)); st.save(mk('b', 200)); assert.ok(st.save(mk('c', 200)));
+assert.ok(st.get('c') && !st.get('a'), 'quota: oldest dropped, new kept');
+assert.strictEqual(new WL.BrewStore(new Mem(100), 20).save(mk('big', 200)), false);
+// broken storage object: nothing throws
+const bad = new WL.BrewStore({ getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); }, removeItem() { throw new Error('x'); } });
+assert.strictEqual(bad.save(mk('q', 5)), false); assert.deepStrictEqual(bad.index(), []); assert.strictEqual(bad.loadActive(), null);
 console.log('all tests passed');

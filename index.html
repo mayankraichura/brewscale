@@ -3,31 +3,37 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Weight Log</title>
 <style>
-:root{--bg:#12100E;--card:#1C1916;--line:#2A2622;--tx:#F4EFE8;--mu:#9A9085;--ac:#E8955A;--w:#6FB1E0;--ok:#7BC47F;--bad:#E2735C}
-@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#F6F1EA;--card:#FFFFFF;--line:#E4DCD0;--tx:#241F1A;--mu:#6F665B;--ac:#C8672B;--w:#2F7DB5;--ok:#2F8F4A;--bad:#B8432C}}
+:root{--bg:#12100E;--card:#1C1916;--line:#2A2622;--tx:#F4EFE8;--mu:#9A9085;--ac:#E8955A;--w:#6FB1E0;--ok:#7BC47F;--bad:#E2735C;--stop:#D93B30}
+@media (prefers-color-scheme:light){:root{--bg:#F6F1EA;--card:#FFFFFF;--line:#E4DCD0;--tx:#241F1A;--mu:#6F665B;--ac:#C8672B;--w:#2F7DB5;--ok:#2F8F4A;--bad:#B8432C;--stop:#C62F25}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,sans-serif;min-height:100vh}
-main{max-width:1100px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 24px 16px;display:flex;flex-direction:column;gap:14px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.spread{justify-content:space-between}
+main{max-width:1100px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 28px 16px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.spread{justify-content:space-between}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
 h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
 .lab{font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.08em}
 .num{font-variant-numeric:tabular-nums;font-weight:600;line-height:1}
-.big{font-size:clamp(48px,11vw,96px)}
+.big{font-size:clamp(44px,10vw,88px)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:560px){.grid{grid-template-columns:1fr}}
-button,select{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;min-height:44px;cursor:pointer}
+button,select,input[type=text]{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;min-height:44px}
+button{cursor:pointer}
 button.p{background:var(--ac);border-color:var(--ac);color:#12100E;font-weight:650}
 button:disabled{opacity:.45;cursor:default}
+#main{width:100%;min-height:92px;font-size:30px;font-weight:700;border-radius:20px;letter-spacing:.3px}
+#main.go{background:var(--ac);border-color:var(--ac);color:#12100E}
+#main.stop{background:var(--stop);border-color:var(--stop);color:#fff}
 .pill{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:13px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--mu)}
-.dot.on{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.rec{background:var(--bad);animation:b 1s infinite}
+.dot.on{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.rec{background:var(--stop);animation:b 1s infinite}
 @keyframes b{50%{opacity:.25}}
-canvas{width:100%;display:block}
-#cw{height:230px}#cf{height:170px}
-.note{font-size:13px;color:var(--mu)}
-.neg{color:var(--bad)}
+canvas{width:100%;display:block}#cw{height:230px}#cf{height:170px}
+.note{font-size:13px;color:var(--mu)}.neg{color:var(--bad)}
+.timer{font-size:clamp(56px,14vw,120px)}
+#hist .it{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+#hist .it:first-child{border-top:0}#hist .it .t{flex:1;min-width:200px}
+#hist button{min-height:38px;padding:0 12px}
+.warn{border-color:var(--ac)}
 </style></head><body>
 <main>
  <div class="row spread">
@@ -42,9 +48,24 @@ canvas{width:100%;display:block}
   <div class="row">
    <button class="p" id="connect">Connect to BrewScale</button>
    <label class="note">Smoothing <select id="sm"><option value="1">Off</option><option value="3">3 samples (0.3 s)</option><option value="5">5 samples (0.5 s)</option><option value="10">10 samples (1 s)</option></select></label>
-   <button id="zero" disabled title="Only changes what this page shows and logs; the scale is not touched">Zero (view only)</button>
+   <button id="zero" disabled title="Only changes what this page shows and logs; the scale is not touched">Zero now</button>
+   <label class="note"><input type="checkbox" id="zstart" checked> Zero at start</label>
   </div>
   <div class="note" id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
+ </div>
+
+ <div class="card warn" id="notice" hidden>
+  <div id="noticemsg"></div>
+  <div class="row" style="margin-top:8px"><button id="noticeok">OK</button></div>
+ </div>
+
+ <div class="card">
+  <div class="row spread" style="align-items:flex-end">
+   <div><div class="lab" id="tlab">Brew time</div><div class="num timer" id="timer">0:00.0</div></div>
+   <div class="row"><input id="label" type="text" maxlength="24" placeholder="Label (optional)" aria-label="Label for this brew" style="width:190px"></div>
+  </div>
+  <div style="margin-top:12px"><button id="main" class="go" disabled>Start brewing</button></div>
+  <div class="note" id="bstat" style="margin-top:8px">Connect to the scale, then start.</div>
  </div>
 
  <div class="grid">
@@ -53,59 +74,102 @@ canvas{width:100%;display:block}
  </div>
 
  <div class="card">
-  <div class="row spread" style="margin-bottom:6px"><span class="lab">Weight (g)</span>
-   <label class="note">Window <select id="win"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option><option value="0">All</option></select></label></div>
-  <canvas id="cw"></canvas>
-  <div class="lab" style="margin:10px 0 6px">Flow (g/s)</div>
-  <canvas id="cf"></canvas>
+  <div class="row spread" style="margin-bottom:6px"><span class="lab" id="ctitle">Live</span>
+   <span class="row"><button id="live" hidden>Back to live</button>
+   <label class="note" id="winl">Window <select id="win"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></label></span></div>
+  <div class="lab">Weight (g)</div><canvas id="cw"></canvas>
+  <div class="lab" style="margin:10px 0 6px">Flow (g/s)</div><canvas id="cf"></canvas>
  </div>
 
- <div class="card row spread" id="restore" hidden>
-  <div id="restoremsg" class="note"></div>
-  <div class="row"><button class="p" id="restorego">Restore</button><button id="restoredrop">Discard</button></div>
- </div>
  <div class="card row spread">
-  <div class="row">
-   <input id="label" type="text" maxlength="24" placeholder="Label (for the file name)" aria-label="Label for the CSV file name" style="min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--tx);padding:0 12px;font:inherit;width:200px">
-   <button class="p" id="rec" disabled>Start log</button>
-   <button id="dl" disabled>Download CSV</button>
-   <button id="cp" disabled>Copy CSV</button>
-   <button id="clear" disabled>Clear</button>
-  </div>
-  <div class="row"><span class="dot" id="rd"></span><span id="rs" class="note">Log is empty</span></div>
+  <div class="row"><button id="dl" disabled>Download CSV</button><button id="cp" disabled>Copy CSV</button></div>
+  <div class="note" id="rs">No brew selected</div>
  </div>
  <div class="card" id="csvbox" hidden>
   <div class="note" id="csvmsg" style="margin-bottom:8px"></div>
   <textarea id="csvtxt" readonly rows="8" style="width:100%;font:12px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:10px"></textarea>
   <div class="row" style="margin-top:8px"><button id="csvsel">Select all</button><button id="csvclose">Close</button></div>
  </div>
- <div class="note">Read-only: this page only listens to the scale and sends it nothing. Data stays in this browser until you download it. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
+
+ <div class="card">
+  <div class="row spread" style="margin-bottom:4px"><span class="lab">Saved brews (kept in this browser)</span><button id="clearall" hidden>Delete all</button></div>
+  <div id="hist"><div class="note">No saved brews yet.</div></div>
+ </div>
+ <div class="note">Read-only: this page only listens to the scale and sends it nothing. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
 </main>
 <script src="core.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const DEMO=new URLSearchParams(location.search).has('demo');
 const flowCalc=new WL.FlowCalc(),seqT=new WL.SeqTracker(),rate=new WL.RateMeter(5);
-let smN=3;try{smN=+localStorage.getItem('wl.sm')||3}catch(e){}
-let ma=new WL.MovingAvg(smN);
-let buf=[];                 // rolling live samples {t,g,f}   (t = seconds since the page loaded)
-let rec=[],logging=false,logT0=0,offset=0,lastRaw=null,connected=false;
+let store;try{store=new WL.BrewStore(localStorage)}catch(e){store=new WL.BrewStore({getItem(){throw 0},setItem(){throw 0},removeItem(){throw 0}})}
+const pref=(k,d)=>{try{const v=localStorage.getItem('wl.'+k);return v==null?d:v}catch(e){return d}};
+const setPref=(k,v)=>{try{localStorage.setItem('wl.'+k,String(v))}catch(e){}};
+let smN=+pref('sm',3)||3,ma=new WL.MovingAvg(smN);
+let buf=[];                              // rolling live samples {t,g,f}
+let brewing=false,brew=null,t0=0,startedAt=0,viewBrew=null;   // brew = the running brew; viewBrew = a finished brew shown in the charts
+let offset=0,lastRaw=null,connected=false,dirty=false;
 const T0=performance.now()/1000,now=()=>performance.now()/1000-T0;
 
 // ---- one sample arrives (from Bluetooth or the demo) ----
 function onSample(p){
- const t=now();
- rate.feed(t);seqT.feed(p.seq);
- const raw=p.g,g=ma.push(raw==null?null:raw-offset),f=flowCalc.push(t,g);   // weight is smoothed, flow comes from the smoothed weight
- lastRaw=raw;
- buf.push({t,g,f});
- if(buf.length>7000)buf.splice(0,buf.length-6000);
- if(logging)rec.push({t:t-logT0,g,f,raw,seq:p.seq,flags:p.flags});
+ const t=now();rate.feed(t);seqT.feed(p.seq);
+ const raw=p.g,g=ma.push(raw==null?null:raw-offset),f=flowCalc.push(t,g);
+ lastRaw=raw;buf.push({t,g,f});if(buf.length>7000)buf.splice(0,buf.length-6000);
+ if(brewing)brew.rows.push([+(t-t0).toFixed(2),g==null?null:+g.toFixed(2),f==null?null:+f.toFixed(2),raw==null?null:+raw.toFixed(2),p.seq,p.flags]);
  dirty=true;
 }
 
+// ---- brewing: start / stop ----
+function startBrewing(){
+ if(brewing)return;
+ if($('zstart').checked&&lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.reset()}
+ viewBrew=null;buf=[];                  // clear the charts: the brew starts at t0
+ t0=now();startedAt=Date.now();
+ brew={id:startedAt.toString(36),start:startedAt,label:$('label').value.trim(),sm:smN,dur:0,interrupted:false,rows:[]};
+ brewing=true;store.saveActive(brew);lastSave=Date.now();dirty=true;
+}
+function stopBrewing(){
+ if(!brewing||now()-t0<1)return;        // ignore a stop within 1 s of the start (double tap)
+ brewing=false;brew.dur=+(now()-t0).toFixed(1);brew.label=$('label').value.trim()||brew.label;
+ const ok=store.save(brew);store.clearActive();viewBrew=brew;brew=null;renderHistory();dirty=true;
+ if(!ok)showNotice('The browser storage is full or blocked: this brew was NOT saved. Download or copy the CSV now.');
+}
+let debounceUntil=0;
+$('main').onclick=()=>{
+ if(brewing){stopBrewing();return}
+ startBrewing();debounceUntil=Date.now()+900;
+};
+let lastSave=0;
+function autosave(force){if(!brewing||(!force&&Date.now()-lastSave<3000))return;brew.dur=+(now()-t0).toFixed(1);if(store.saveActive(brew))lastSave=Date.now()}
+setInterval(()=>autosave(false),1000);
+addEventListener('pagehide',()=>autosave(true));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave(true)});
+
+// ---- saved brews ----
+function fmtDur(s){return WL.fmtTimer(s).replace(/\.\d$/,'')}
+function renderHistory(){
+ const idx=store.index(),box=$('hist');box.textContent='';
+ $('clearall').hidden=!idx.length;
+ if(!idx.length){const d=document.createElement('div');d.className='note';d.textContent='No saved brews yet.';box.append(d);return}
+ for(const m of idx){
+  const it=document.createElement('div');it.className='it';
+  const t=document.createElement('div');t.className='t';
+  t.textContent=`${new Date(m.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}${m.label?' · '+m.label:''} · ${fmtDur(m.dur)} · ${m.finalG==null?'--':m.finalG.toFixed(0)} g${m.interrupted?' · interrupted':''}`;
+  const mk=(txt,fn)=>{const b=document.createElement('button');b.textContent=txt;b.onclick=fn;return b};
+  it.append(t,mk('View',()=>{const b=store.get(m.id);if(b){viewBrew=b;dirty=true;scrollTo({top:0,behavior:'smooth'})}}),
+   mk('CSV',()=>{const b=store.get(m.id);if(b)saveCsv(b)}),mk('Copy',()=>{const b=store.get(m.id);if(b)copyCsv(b)}),
+   mk('Delete',()=>{if(confirm('Delete this brew?')){store.remove(m.id);if(viewBrew&&viewBrew.id===m.id)viewBrew=null;renderHistory();dirty=true}}));
+  box.append(it);
+ }
+}
+$('clearall').onclick=()=>{if(confirm('Delete ALL saved brews from this browser?')){store.clearAll();viewBrew=null;renderHistory();dirty=true}};
+$('live').onclick=()=>{viewBrew=null;dirty=true};
+function showNotice(msg){$('noticemsg').textContent=msg;$('notice').hidden=false}
+$('noticeok').onclick=()=>{$('notice').hidden=true};
+
 // ---- readouts + charts ----
-let dirty=false;
+function shown(){return brewing?brew:viewBrew}
 function readouts(){
  const l=buf[buf.length-1];
  if(!l||now()-l.t>2){$('wv').textContent='--';$('fv').textContent='--'}
@@ -114,60 +178,75 @@ function readouts(){
  const ws=buf.filter(p=>p.g!=null&&p.t>now()-5).map(p=>p.g),nz=WL.noiseSd(ws);$('nz').textContent=nz==null?'--':nz.toFixed(2);
  $('hz').textContent=rate.hz().toFixed(1);$('lost').textContent=seqT.lost;
  $('zero').disabled=!(connected||DEMO)||lastRaw==null;
- $('rec').disabled=!(connected||DEMO)&&!logging;
- $('dl').disabled=!rec.length;$('cp').disabled=!rec.length;$('clear').disabled=!rec.length||logging;
- $('rd').className='dot'+(logging?' rec':'');
- $('rs').textContent=logging?`Logging… ${rec.length} samples, ${(rec[rec.length-1]||{t:0}).t.toFixed(0)} s`:rec.length?`${rec.length} samples, ${rec[rec.length-1].t.toFixed(1)} s (stopped)`:'Log is empty';
- $('rec').textContent=logging?'Stop log':'Start log';
+ const canStart=connected||DEMO;
+ $('main').className=brewing?'stop':'go';$('main').textContent=brewing?'STOP':'Start brewing';
+ $('main').disabled=!brewing&&(!canStart||Date.now()<debounceUntil);   // no start without a scale; short lock after a press
+ const b=shown();
+ $('timer').textContent=WL.fmtTimer(brewing?now()-t0:b?b.dur:0);
+ $('tlab').textContent=brewing?'Brewing':b?'Brew time (finished)':'Brew time';
+ $('bstat').textContent=brewing?`Recording: ${brew.rows.length} samples`+(connected||DEMO?'':' · connection lost, reconnecting…'):canStart?'Ready. Pressing start zeroes the weight and clears the charts.':'Connect to the scale, then start.';
+ $('ctitle').textContent=b?'Brew'+(b.label?' · '+b.label:'')+(brewing?'':' · '+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})):'Live';
+ $('live').hidden=!viewBrew||brewing;$('winl').hidden=!!b;
+ $('dl').disabled=!b||!b.rows.length;$('cp').disabled=!b||!b.rows.length;
+ $('rs').textContent=b?`${b.rows.length} samples, ${fmtDur(brewing?now()-t0:b.dur)}`:'No brew selected';
 }
 function setupCanvas(c){const d=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
  if(c.width!==Math.round(w*d)||c.height!==Math.round(h*d)){c.width=Math.round(w*d);c.height=Math.round(h*d)}
  const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);return[x,w,h]}
 function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
-function drawChart(c,key,color,zeroLine,minSpan){
+function niceStep(s){const p=Math.pow(10,Math.floor(Math.log10(s))),m=s/p;return(m<1.5?1:m<3.5?2:m<7.5?5:10)*p}
+function mmss(sec){const a=Math.round(sec);return Math.floor(a/60)+':'+String(a%60).padStart(2,'0')}
+function fmtBack(d){const a=Math.round(-d);return a===0?'now':a>=60?`−${Math.floor(a/60)}:${String(a%60).padStart(2,'0')}`:`−${a} s`}
+// pts: [{t,v}] ; live: x counts back from now, brew: x = brew time from 0
+function drawChart(c,pts,color,zeroLine,minSpan,x0,x1,live){
  const[x,W,H]=setupCanvas(c);if(!W)return;
- const win=+$('win').value,tn=now();let t1=tn,t0=win?tn-win:(buf.length?buf[0].t:tn-60);
- const pts=buf.filter(p=>p.t>=t0&&p[key]!=null);
- let lo=Infinity,hi=-Infinity;for(const p of pts){lo=Math.min(lo,p[key]);hi=Math.max(hi,p[key])}
+ let lo=Infinity,hi=-Infinity;for(const p of pts){lo=Math.min(lo,p.v);hi=Math.max(hi,p.v)}
  if(!pts.length){lo=0;hi=minSpan}
  if(zeroLine){lo=Math.min(lo,0);hi=Math.max(hi,0)}
  if(hi-lo<minSpan){const m=(hi+lo)/2;lo=m-minSpan/2;hi=m+minSpan/2}
  const pad=(hi-lo)*.08;lo-=pad;hi+=pad;
- const L=44,T=6,B=18,PW=W-L-8,PH=H-T-B,px=t=>L+(t-t0)/(t1-t0)*PW,py=v=>T+(1-(v-lo)/(hi-lo))*PH;
+ const L=44,T=6,B=18,PW=W-L-8,PH=H-T-B,px=t=>L+(t-x0)/(x1-x0)*PW,py=v=>T+(1-(v-lo)/(hi-lo))*PH;
  x.font='11px system-ui,sans-serif';x.fillStyle=css('--mu');x.strokeStyle=css('--line');x.lineWidth=1;
  const step=niceStep((hi-lo)/4);x.textAlign='right';x.textBaseline='middle';
  for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step){const y=Math.round(py(v))+.5;x.beginPath();x.moveTo(L,y);x.lineTo(L+PW,y);x.stroke();x.fillText(+v.toFixed(2),L-6,y)}
  x.textBaseline='alphabetic';x.textAlign='center';
- const ts=niceStep((t1-t0)/5);for(let k=0;t1-k*ts>=t0;k++)x.fillText(fmtT(-k*ts),Math.max(px(t1-k*ts),L+10),H-3);   // labels count back from now
+ const steps=[5,10,15,30,60,120,300,600],ts=steps.find(s=>(x1-x0)/s<=7)||600;
+ if(live){for(let k=0;x1-k*ts>=x0;k++)x.fillText(fmtBack(-k*ts),Math.max(px(x1-k*ts),L+10),H-3)}
+ else{for(let t=0;t<=x1;t+=ts){const X=px(t);x.strokeStyle=css('--line');x.beginPath();x.moveTo(Math.round(X)+.5,T);x.lineTo(Math.round(X)+.5,T+PH);x.stroke();x.fillText(mmss(t),Math.max(X,L+10),H-3)}}
  if(zeroLine){x.strokeStyle=css('--mu');x.setLineDash([3,4]);x.beginPath();x.moveTo(L,py(0));x.lineTo(L+PW,py(0));x.stroke();x.setLineDash([])}
  x.strokeStyle=color;x.lineWidth=2;x.lineJoin='round';x.beginPath();let on=false;
- for(const p of pts){const X=px(p.t),Y=py(p[key]);on?x.lineTo(X,Y):x.moveTo(X,Y);on=true}x.stroke();
- if(pts.length){const p=pts[pts.length-1];x.fillStyle=color;x.beginPath();x.arc(px(p.t),py(p[key]),4,0,7);x.fill()}
+ for(const p of pts){const X=px(p.t),Y=py(p.v);on?x.lineTo(X,Y):x.moveTo(X,Y);on=true}x.stroke();
+ if(pts.length){const p=pts[pts.length-1];x.fillStyle=color;x.beginPath();x.arc(px(p.t),py(p.v),4,0,7);x.fill()}
 }
-function niceStep(s){const p=Math.pow(10,Math.floor(Math.log10(s))),m=s/p;return(m<1.5?1:m<3.5?2:m<7.5?5:10)*p}
-function fmtT(d){const a=Math.round(-d);return a===0?'now':a>=60?`−${Math.floor(a/60)}:${String(a%60).padStart(2,'0')}`:`−${a} s`}
-function frame(){if(dirty||DEMO){dirty=false;readouts();drawChart($('cw'),'g',css('--w'),false,5);drawChart($('cf'),'f',css('--ac'),true,4)}requestAnimationFrame(frame)}
-setInterval(readouts,500);   // keeps Hz / status fresh when no data arrives
+function frame(){
+ if(dirty||brewing||DEMO){dirty=false;readouts();
+  const b=shown(),cw=$('cw'),cf=$('cf');
+  if(b){const last=b.rows.length?b.rows[b.rows.length-1][0]:0,x1=Math.max(60,Math.ceil((brewing?now()-t0:b.dur||last)/30)*30);
+   drawChart(cw,b.rows.filter(r=>r[1]!=null).map(r=>({t:r[0],v:r[1]})),css('--w'),false,5,0,x1,false);
+   drawChart(cf,b.rows.filter(r=>r[2]!=null).map(r=>({t:r[0],v:r[2]})),css('--ac'),true,4,0,x1,false)}
+  else{const win=+$('win').value,tn=now();
+   drawChart(cw,buf.filter(p=>p.t>=tn-win&&p.g!=null).map(p=>({t:p.t,v:p.g})),css('--w'),false,5,tn-win,tn,true);
+   drawChart(cf,buf.filter(p=>p.t>=tn-win&&p.f!=null).map(p=>({t:p.t,v:p.f})),css('--ac'),true,4,tn-win,tn,true)}}
+ requestAnimationFrame(frame)}
+setInterval(readouts,500);
 
-// ---- Bluetooth (Chrome, secure context: https or localhost) ----
+// ---- Bluetooth (Chrome / Bluefy: https or localhost) ----
 let dev=null,reconnects=0;
 function status(text,cls){$('cs').textContent=text;$('cd').className='dot '+(cls||'')}
 async function openGatt(){
- const server=await dev.gatt.connect();
- const svc=await server.getPrimaryService(WL.SVC);
- const ch=await svc.getCharacteristic(WL.WEIGHT);
+ const server=await dev.gatt.connect(),svc=await server.getPrimaryService(WL.SVC),ch=await svc.getCharacteristic(WL.WEIGHT);
  ch.addEventListener('characteristicvaluechanged',e=>{const p=WL.parsePacket(e.target.value);if(p)onSample(p)});
- await ch.startNotifications();               // the only thing this page asks of the scale
- connected=true;reconnects=0;flowCalc.reset();seqT.reset();status('Connected: '+(dev.name||'BrewScale'),'on');$('connect').textContent='Disconnect';
+ await ch.startNotifications();           // the only thing this page asks of the scale
+ connected=true;reconnects=0;flowCalc.reset();seqT.reset();status('Connected: '+(dev.name||'BrewScale'),'on');$('connect').textContent='Disconnect';dirty=true;
 }
 async function onDisconnected(){
  connected=false;status('Connection lost: reconnecting…','bad');
- while(!connected&&dev&&reconnects<40){reconnects++;await new Promise(r=>setTimeout(r,2000));
+ while(!connected&&dev&&reconnects<60){reconnects++;await new Promise(r=>setTimeout(r,2000));
   try{await openGatt();return}catch(e){status(`Reconnecting (${reconnects})…`,'bad')}}
  if(!connected){status('Not connected','');$('connect').textContent='Connect to BrewScale'}
 }
 async function connect(){
- if(!navigator.bluetooth){status('This browser has no Web Bluetooth: use Chrome','bad');return}
+ if(!navigator.bluetooth){status('This browser has no Web Bluetooth: use Chrome (or Bluefy on iPad)','bad');return}
  if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;status('Not connected','');$('connect').textContent='Connect to BrewScale';return}
  try{
   status('Choose BrewScale in the dialog…','');
@@ -175,84 +254,58 @@ async function connect(){
   dev.addEventListener('gattserverdisconnected',onDisconnected);
   status('Connecting…','');await openGatt();
  }catch(e){status(e.name==='NotFoundError'?'No device chosen':'Failed: '+e.message,'bad');dev=null;
-  if(/Unsupported device|GATT operation failed|already/i.test(e.message))$('hint').textContent='If it keeps failing: the brewer board may hold the connection. Switch it off and try again.'}
+  if(/Unsupported device|GATT operation failed|already/i.test(e.message))$('hint').textContent='If it keeps failing: another device may hold the connection. Switch it off and try again.'}
 }
 $('connect').onclick=connect;
 
-// ---- zero (view only), logging ----
+// ---- settings ----
 $('zero').onclick=()=>{if(lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.reset()}};
 $('sm').value=String(smN);if($('sm').value!==String(smN)){smN=3;$('sm').value='3'}
-$('sm').onchange=()=>{smN=+$('sm').value;ma=new WL.MovingAvg(smN);flowCalc.reset();try{localStorage.setItem('wl.sm',String(smN))}catch(e){}};
-$('rec').onclick=()=>{
- if(logging){logging=false;autosave(true);return}
- if(!$('restore').hidden&&!confirm('A saved log from an earlier session is waiting. Start a new log and discard it?'))return;
- $('restore').hidden=true;
- rec=[];logT0=now();logging=true;dirty=true;autosave(true);
-};
-function csvName(d=new Date()){
- const z=n=>String(n).padStart(2,'0'),lab=($('label').value||'').trim().replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24);
- return `weightlog-${lab?lab+'-':''}${smN===1?'raw':'ma'+smN}-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.csv`}
-try{$('label').value=localStorage.getItem('wl.label')||''}catch(e){}
-$('label').oninput=()=>{try{localStorage.setItem('wl.label',$('label').value)}catch(e){}};
-// Saving a CSV. Desktop browsers: a normal file download. iPad/iPhone browsers (Bluefy, Safari) ignore the
-// download attribute, so there the share sheet is used (Save to Files). Copy CSV and the text box always work.
-let IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-function showCsv(msg){$('csvmsg').textContent=msg;$('csvtxt').value=WL.toCsv(rec);$('csvbox').hidden=false;$('csvtxt').focus();$('csvtxt').select();$('csvbox').scrollIntoView({block:'nearest'})}
-async function saveCsv(){
- const name=csvName(),text=WL.toCsv(rec);
- if(IOS&&navigator.share&&navigator.canShare){
-  for(const type of['text/csv','text/plain']){
-   const file=new File([text],name,{type});
-   if(!navigator.canShare({files:[file]}))continue;
-   try{await navigator.share({files:[file],title:name});return}catch(e){if(e.name==='AbortError')return}
-  }
-  showCsv('This browser cannot save files. Copy the text below and paste it into Notes or Files, then name it '+name);return;
- }
- try{
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;
-  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
- }catch(e){showCsv('Download failed. Copy the text below and save it as '+name)}
-}
-async function copyCsv(){
- const text=WL.toCsv(rec);
- try{await navigator.clipboard.writeText(text);$('rs').textContent='CSV copied ('+rec.length+' samples)';return}catch(e){}
- showCsv('Copy was blocked. Select all and copy the text below.');
-}
-$('dl').onclick=saveCsv;$('cp').onclick=copyCsv;
-$('csvsel').onclick=()=>{$('csvtxt').focus();$('csvtxt').select()};$('csvclose').onclick=()=>{$('csvbox').hidden=true};
-$('clear').onclick=()=>{rec=[];dirty=true;try{localStorage.removeItem('wl.log')}catch(e){}};
-$('win').onchange=()=>{dirty=true};
-addEventListener('resize',()=>{dirty=true});
-addEventListener('beforeunload',e=>{if(logging||rec.length){e.preventDefault();e.returnValue=''}});
+$('sm').onchange=()=>{smN=+$('sm').value;ma=new WL.MovingAvg(smN);flowCalc.reset();setPref('sm',smN)};
+$('zstart').checked=pref('zstart','1')==='1';$('zstart').onchange=()=>setPref('zstart',$('zstart').checked?'1':'0');
+$('label').value=pref('label','');$('label').oninput=()=>setPref('label',$('label').value);
+$('win').onchange=()=>{dirty=true};addEventListener('resize',()=>{dirty=true});
 
-// ---- autosave: the log is kept in this browser's storage while you record, so a reload, a crash or a closed tab
-// does not lose it. After a reload the page offers to restore it. Saving happens every 3 s and on leaving the page.
-let savedN=-1;
-function autosave(force){
- if(!rec.length||(!force&&rec.length===savedN))return;
- try{localStorage.setItem('wl.log',JSON.stringify({saved:new Date().toISOString(),sm:smN,rows:rec.map(r=>[+r.t.toFixed(2),r.g==null?null:+r.g.toFixed(2),r.f==null?null:+r.f.toFixed(2),r.raw==null?null:+r.raw.toFixed(2),r.seq,r.flags])}));savedN=rec.length}
- catch(e){$('rs').textContent='Autosave failed (browser storage full or blocked): download the CSV now'}
+// ---- saving a CSV: desktop = file download; iPad/iPhone browsers ignore the download attribute, so the share sheet is used ----
+let IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function csvName(b){
+ const z=n=>String(n).padStart(2,'0'),d=new Date(b.start),lab=(b.label||'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24);
+ return `weightlog-${lab?lab+'-':''}${b.sm===1?'raw':'ma'+b.sm}-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.csv`}
+function showCsv(b,msg){$('csvmsg').textContent=msg;$('csvtxt').value=WL.rowsToCsv(b.rows);$('csvbox').hidden=false;$('csvtxt').focus();$('csvtxt').select();$('csvbox').scrollIntoView({block:'nearest'})}
+async function saveCsv(b){
+ const name=csvName(b),text=WL.rowsToCsv(b.rows);
+ if(IOS&&navigator.share&&navigator.canShare){
+  for(const type of['text/csv','text/plain']){const file=new File([text],name,{type});if(!navigator.canShare({files:[file]}))continue;
+   try{await navigator.share({files:[file],title:name});return}catch(e){if(e.name==='AbortError')return}}
+  showCsv(b,'This browser cannot save files. Copy the text below and paste it into Notes or Files, then name it '+name);return}
+ try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+ catch(e){showCsv(b,'Download failed. Copy the text below and save it as '+name)}
 }
-setInterval(()=>{if(logging)autosave(false)},3000);
-addEventListener('pagehide',()=>autosave(true));
-document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave(true)});
-(function offerRestore(){
- let d=null;try{d=JSON.parse(localStorage.getItem('wl.log')||'null')}catch(e){}
- if(!d||!d.rows||!d.rows.length)return;
- const last=d.rows[d.rows.length-1][0];
- $('restoremsg').textContent=`A saved log was found: ${d.rows.length} samples, ${last.toFixed(0)} s, saved ${new Date(d.saved).toLocaleString()}.`;
- $('restore').hidden=false;
- $('restorego').onclick=()=>{rec=d.rows.map(r=>({t:r[0],g:r[1],f:r[2],raw:r[3],seq:r[4],flags:r[5]}));savedN=rec.length;$('restore').hidden=true;dirty=true;readouts()};
- $('restoredrop').onclick=()=>{try{localStorage.removeItem('wl.log')}catch(e){}$('restore').hidden=true};
+async function copyCsv(b){
+ try{await navigator.clipboard.writeText(WL.rowsToCsv(b.rows));$('rs').textContent='CSV copied ('+b.rows.length+' samples)';return}catch(e){}
+ showCsv(b,'Copy was blocked. Select all and copy the text below.');
+}
+$('dl').onclick=()=>{const b=shown();if(b)saveCsv(b)};$('cp').onclick=()=>{const b=shown();if(b)copyCsv(b)};
+$('csvsel').onclick=()=>{$('csvtxt').focus();$('csvtxt').select()};$('csvclose').onclick=()=>{$('csvbox').hidden=true};
+
+// ---- on load: recover a brew that a reload interrupted, import the log of the older page version ----
+(function recover(){
+ const a=store.loadActive();
+ if(a&&a.rows.length){a.interrupted=true;a.dur=a.rows[a.rows.length-1][0];store.save(a);viewBrew=a;
+  showNotice(`The page was reloaded or closed during a brew. The ${fmtDur(a.dur)} that was recorded (${a.rows.length} samples) is saved and shown below.`)}
+ store.clearActive();
+ try{const old=JSON.parse(localStorage.getItem('wl.log')||'null');   // autosave of the previous page version
+  if(old&&old.rows&&old.rows.length){const b={id:'old'+Date.now().toString(36),start:Date.parse(old.saved)||Date.now(),label:'imported',sm:old.sm||3,dur:old.rows[old.rows.length-1][0],interrupted:true,rows:old.rows};store.save(b);if(!viewBrew)viewBrew=b}
+  localStorage.removeItem('wl.log')}catch(e){}
+ renderHistory();
 })();
 
-// ---- demo (?demo): a simulated brew with five ~50 g pours, so the page can be tried without the scale ----
+// ---- demo (?demo): a simulated scale with five ~50 g pours, so the page can be tried without hardware ----
 if(DEMO){
  $('mode').textContent='· demo data';$('connect').disabled=true;$('connect').textContent='Demo running';status('Demo','on');
  let seq=0,w=0,tt=0;const pours=[[2,12],[47,56],[67,75],[87,95],[106,113]];
  setInterval(()=>{tt+=.1;let r=0;for(const[a,b]of pours)if(tt>=a&&tt<b)r=51/(b-a);w+=r*.1;
-  const noise=(Math.random()-.5)*.6;
-  onSample({seq:seq++&0xFFFF,flags:3,noData:false,tared:true,calibrated:true,g:+(w+noise-.3).toFixed(2)})},100);
+  onSample({seq:seq++&0xFFFF,flags:3,noData:false,tared:true,calibrated:true,g:+(w+(Math.random()-.5)*.6-.3+260).toFixed(2)})},100);
 }
 requestAnimationFrame(frame);readouts();
 </script></body></html>

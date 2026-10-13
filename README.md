@@ -6,13 +6,21 @@ browser. No server, no account, no tracking: everything stays on your device unt
 It was made for a DIY scale (ESP32-C3 + HX711 load cell amp) used for pour-over coffee, but any BLE device that sends
 the 7-byte packet below will work.
 
+## How it works
+1. **Connect** to the scale (Chrome, or Bluefy on iPad).
+2. Press **Start brewing**. The page zeroes the weight (switch off with *Zero at start*), clears the charts, sets t0 and starts the timer.
+3. The charts show weight and flow rate against brew time. The big red **STOP** button ends the brew (a stop within 1 s of the start is ignored, so a double tap cannot end it).
+4. The brew is saved in the browser and appears under *Saved brews*. From there you can **View** it again, download or copy its **CSV**, or delete it.
+
 ## Features
-- Live weight and flow readouts, two charts (30 s to 5 min windows)
+- Timer, live weight and flow readouts, and two charts (live last 30 s to 5 min while idle, the whole brew during and after a brew)
 - Smoothing: moving average over 1 (off), 3, 5 or 10 samples, with a live noise readout
-- "Zero (view only)" button: it only changes what the page shows and logs, the scale is never written to
-- Log with Start/Stop, CSV download, optional label in the file name
-- Reconnects by itself if the Bluetooth link drops
-- `?demo` in the URL shows simulated data, no scale needed
+- "Zero now" button: it only changes what the page shows and logs, the scale is never written to
+- Saved brews survive reloads and closed tabs (last 20, in the browser's local storage)
+- If the page is reloaded or crashes during a brew, the part that was recorded is kept as an *interrupted* brew
+- Optional label (used in the file name), CSV download or copy
+- Reconnects by itself if the Bluetooth link drops (the timer keeps running)
+- `?demo` in the URL shows simulated data (no scale needed)
 
 ## Browser support
 Web Bluetooth is needed, on an `https://` page (or `http://localhost`):
@@ -45,7 +53,7 @@ and real arrival times.
 
 ## CSV
 `time_s,weight_g,flow_gps,raw_g,seq,flags`: `weight_g` is smoothed and after "Zero (view only)", `raw_g` is what the scale
-sent. The first 1.5 s of a log have no flow value. The file name contains the label, the smoothing and the time.
+sent. `time_s` is the brew time (0 = Start brewing). The first 1.5 s of a brew have no flow value. The file name contains the label, the smoothing and the start time.
 
 ## Run it
 - **Live page: https://mayankraichura.github.io/brewscale/** (open it in a supported browser; add `?demo` to try it without a scale)
@@ -56,12 +64,11 @@ sent. The first 1.5 s of a log have no flow value. The file name contains the la
 - Desktop: **Download CSV** saves a file.
 - iPad / iPhone (Bluefy): **Download CSV** opens the share sheet, choose *Save to Files*. If that is not offered, **Copy CSV** puts the text on the clipboard (paste it into Notes or Files), and a text box appears as a last resort.
 
-## Autosave
-While you record, the log is saved in the browser's local storage every 3 s. After a reload or a crash the page offers to **Restore** it. It is deleted when you press Clear, Discard, or start a new log.
+## Storage
+The running brew is saved in the browser every 3 s and when the page is hidden. Finished brews are kept under `wl.b.<id>` in local storage, with an index; the oldest are dropped when the 20-brew limit or the browser's storage limit is reached. Nothing leaves your device. Clear them with *Delete* / *Delete all*, or by clearing the site's data.
 
 ## Privacy
-The page makes no network requests except loading its own files. It stores the smoothing, the file label and the autosaved log
-in the browser's local storage on your device only. Nothing is sent anywhere.
+The page makes no network requests except loading its own files. It stores your settings and your saved brews in the browser's local storage, on your device only. Nothing is sent anywhere.
 
 ## License
 MIT, see `LICENSE`.

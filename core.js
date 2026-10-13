@@ -85,6 +85,40 @@
     hz() { return this.t.length < 2 ? 0 : (this.t.length - 1) / (this.t[this.t.length - 1] - this.t[0]); }
   }
 
+  // Brews kept in the browser storage (localStorage or a compatible object). A brew is
+  // {id, start (ms since 1970), label, sm (smoothing samples), dur (s), interrupted, rows: [[t, g, flow, raw, seq, flags], ...]}.
+  // Each brew has its own key, a small index lists them (newest first), and the running brew has the key wl.active.
+  // When the storage is full the oldest brews are dropped, never the one being saved.
+  class BrewStore {
+    constructor(storage, maxBrews = 20) { this.st = storage; this.max = maxBrews; }
+    _get(k) { try { const v = this.st.getItem(k); return v == null ? null : JSON.parse(v); } catch (e) { return null; } }
+    _set(k, v) { try { this.st.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+    _del(k) { try { this.st.removeItem(k); } catch (e) { /* ignore */ } }
+    index() { const i = this._get('wl.index'); return Array.isArray(i) ? i : []; }
+    meta(b) {
+      const r = b.rows || [], last = r.length ? r[r.length - 1] : null;
+      return { id: b.id, start: b.start, label: b.label || '', sm: b.sm, dur: b.dur, n: r.length, finalG: last ? last[1] : null, interrupted: !!b.interrupted };
+    }
+    save(b) {
+      const idx = this.index().filter(m => m.id !== b.id);
+      for (;;) {
+        if (this._set('wl.b.' + b.id, b)) break;
+        if (!idx.length) return false;
+        this._del('wl.b.' + idx.pop().id);
+      }
+      idx.unshift(this.meta(b));
+      while (idx.length > this.max) this._del('wl.b.' + idx.pop().id);
+      this._set('wl.index', idx);
+      return true;
+    }
+    get(id) { return this._get('wl.b.' + id); }
+    remove(id) { this._del('wl.b.' + id); this._set('wl.index', this.index().filter(m => m.id !== id)); }
+    clearAll() { for (const m of this.index()) this._del('wl.b.' + m.id); this._del('wl.index'); }
+    saveActive(b) { return this._set('wl.active', b); }
+    loadActive() { const a = this._get('wl.active'); return a && Array.isArray(a.rows) ? a : null; }
+    clearActive() { this._del('wl.active'); }
+  }
+
   const f = (v, d) => (v == null || Number.isNaN(v) ? '' : v.toFixed(d));
   // rows: {t (s since the log started), g (zeroed weight), f (flow), raw, seq, flags}
   function toCsv(rows) {
@@ -93,6 +127,16 @@
     return out.join('\n') + '\n';
   }
 
-  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
+  // rows as stored in a brew: [t, g, flow, raw, seq, flags]
+  function rowsToCsv(rows) {
+    return toCsv(rows.map(r => ({ t: r[0], g: r[1], f: r[2], raw: r[3], seq: r[4], flags: r[5] })));
+  }
+  // 83.4 -> "1:23.4" (timer display)
+  function fmtTimer(sec) {
+    const t = Math.max(0, Math.floor(sec * 10 + 1e-9)), m = Math.floor(t / 600), s = Math.floor((t % 600) / 10), d = t % 10;
+    return m + ':' + String(s).padStart(2, '0') + '.' + d;
+  }
+
+  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.WL;
 })(typeof self !== 'undefined' ? self : globalThis);
