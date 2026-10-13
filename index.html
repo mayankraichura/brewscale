@@ -60,6 +60,10 @@ canvas{width:100%;display:block}
   <canvas id="cf"></canvas>
  </div>
 
+ <div class="card row spread" id="restore" hidden>
+  <div id="restoremsg" class="note"></div>
+  <div class="row"><button class="p" id="restorego">Restore</button><button id="restoredrop">Discard</button></div>
+ </div>
  <div class="card row spread">
   <div class="row">
    <input id="label" type="text" maxlength="24" placeholder="Label (for the file name)" aria-label="Label for the CSV file name" style="min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--tx);padding:0 12px;font:inherit;width:200px">
@@ -180,8 +184,10 @@ $('zero').onclick=()=>{if(lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.rese
 $('sm').value=String(smN);if($('sm').value!==String(smN)){smN=3;$('sm').value='3'}
 $('sm').onchange=()=>{smN=+$('sm').value;ma=new WL.MovingAvg(smN);flowCalc.reset();try{localStorage.setItem('wl.sm',String(smN))}catch(e){}};
 $('rec').onclick=()=>{
- if(logging){logging=false;return}
- rec=[];logT0=now();logging=true;dirty=true;
+ if(logging){logging=false;autosave(true);return}
+ if(!$('restore').hidden&&!confirm('A saved log from an earlier session is waiting. Start a new log and discard it?'))return;
+ $('restore').hidden=true;
+ rec=[];logT0=now();logging=true;dirty=true;autosave(true);
 };
 function csvName(d=new Date()){
  const z=n=>String(n).padStart(2,'0'),lab=($('label').value||'').trim().replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24);
@@ -214,10 +220,31 @@ async function copyCsv(){
 }
 $('dl').onclick=saveCsv;$('cp').onclick=copyCsv;
 $('csvsel').onclick=()=>{$('csvtxt').focus();$('csvtxt').select()};$('csvclose').onclick=()=>{$('csvbox').hidden=true};
-$('clear').onclick=()=>{rec=[];dirty=true};
+$('clear').onclick=()=>{rec=[];dirty=true;try{localStorage.removeItem('wl.log')}catch(e){}};
 $('win').onchange=()=>{dirty=true};
 addEventListener('resize',()=>{dirty=true});
 addEventListener('beforeunload',e=>{if(logging||rec.length){e.preventDefault();e.returnValue=''}});
+
+// ---- autosave: the log is kept in this browser's storage while you record, so a reload, a crash or a closed tab
+// does not lose it. After a reload the page offers to restore it. Saving happens every 3 s and on leaving the page.
+let savedN=-1;
+function autosave(force){
+ if(!rec.length||(!force&&rec.length===savedN))return;
+ try{localStorage.setItem('wl.log',JSON.stringify({saved:new Date().toISOString(),sm:smN,rows:rec.map(r=>[+r.t.toFixed(2),r.g==null?null:+r.g.toFixed(2),r.f==null?null:+r.f.toFixed(2),r.raw==null?null:+r.raw.toFixed(2),r.seq,r.flags])}));savedN=rec.length}
+ catch(e){$('rs').textContent='Autosave failed (browser storage full or blocked): download the CSV now'}
+}
+setInterval(()=>{if(logging)autosave(false)},3000);
+addEventListener('pagehide',()=>autosave(true));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave(true)});
+(function offerRestore(){
+ let d=null;try{d=JSON.parse(localStorage.getItem('wl.log')||'null')}catch(e){}
+ if(!d||!d.rows||!d.rows.length)return;
+ const last=d.rows[d.rows.length-1][0];
+ $('restoremsg').textContent=`A saved log was found: ${d.rows.length} samples, ${last.toFixed(0)} s, saved ${new Date(d.saved).toLocaleString()}.`;
+ $('restore').hidden=false;
+ $('restorego').onclick=()=>{rec=d.rows.map(r=>({t:r[0],g:r[1],f:r[2],raw:r[3],seq:r[4],flags:r[5]}));savedN=rec.length;$('restore').hidden=true;dirty=true;readouts()};
+ $('restoredrop').onclick=()=>{try{localStorage.removeItem('wl.log')}catch(e){}$('restore').hidden=true};
+})();
 
 // ---- demo (?demo): a simulated brew with five ~50 g pours, so the page can be tried without the scale ----
 if(DEMO){

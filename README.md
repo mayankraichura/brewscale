@@ -56,9 +56,12 @@ sent. The first 1.5 s of a log have no flow value. The file name contains the la
 - Desktop: **Download CSV** saves a file.
 - iPad / iPhone (Bluefy): **Download CSV** opens the share sheet, choose *Save to Files*. If that is not offered, **Copy CSV** puts the text on the clipboard (paste it into Notes or Files), and a text box appears as a last resort.
 
+## Autosave
+While you record, the log is saved in the browser's local storage every 3 s. After a reload or a crash the page offers to **Restore** it. It is deleted when you press Clear, Discard, or start a new log.
+
 ## Privacy
-The page makes no network requests except loading its own files. It stores two settings (smoothing and the file label)
-in the browser's local storage. Logged data is kept in memory until you download or clear it.
+The page makes no network requests except loading its own files. It stores the smoothing, the file label and the autosaved log
+in the browser's local storage on your device only. Nothing is sent anywhere.
 
 ## License
 MIT, see `LICENSE`.
