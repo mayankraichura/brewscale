@@ -79,4 +79,28 @@ assert.strictEqual(new WL.BrewStore(new Mem(100), 20).save(mk('big', 200)), fals
 // broken storage object: nothing throws
 const bad = new WL.BrewStore({ getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); }, removeItem() { throw new Error('x'); } });
 assert.strictEqual(bad.save(mk('q', 5)), false); assert.deepStrictEqual(bad.index(), []); assert.strictEqual(bad.loadActive(), null);
+// 8. cup removal: a synthetic espresso (ramp 1.4 g/s from 3 s), a touch of the cup, the cup lifted at 29.3 s, put back at 33.6 s
+const cr = new WL.CupRemoval(20, 2); let hit = null, nHits = 0;
+for (let i = 0; i < 400; i++) {
+  const t = i / 10; let raw = -218 + Math.max(0, Math.min(t, 28.7) - 3) * 1.4 + (((i * 7919) % 13) - 6) * 0.02;
+  if (t >= 28.8) raw -= 1.4;                    // fingers touch the cup
+  if (t >= 29.1) raw -= 3;                      // 4.4 g in all: must not trigger
+  if (t >= 29.3 && t < 33.6) raw -= 83;         // the cup comes off
+  if (t >= 33.6) raw += 0;                      // cup back: weight returns
+  const r = cr.push(t, raw, t >= 2);
+  if (r) { nHits++; if (!hit) hit = r; }
+}
+assert.ok(hit, 'cup removal found');
+assert.ok(hit.detectT >= 29.3 && hit.detectT < 29.5, 'found when the weight fell: ' + hit.detectT);
+assert.ok(hit.endT >= 28.6 && hit.endT <= 28.8, 'the brew is complete where the last stable reading ended: ' + hit.endT);
+assert.ok(Math.abs(hit.finalRaw - (-218 + 25.7 * 1.4)) < 0.3, 'final raw ' + hit.finalRaw);
+const quiet = new WL.CupRemoval(20, 2);
+for (let i = 0; i < 300; i++) assert.strictEqual(quiet.push(i / 10, 100 + i * 0.5, true), null, 'a rising weight never triggers');   // 5 g/s pour
+const small = new WL.CupRemoval(20, 2); let none = null;
+for (let i = 0; i < 100; i++) { const r = small.push(i / 10, i < 50 ? 50 : 40, true); if (r) none = r; }
+assert.strictEqual(none, null, 'a drop of 10 g is below the 20 g limit');
+const unarmed = new WL.CupRemoval(20, 2); let early = null;
+for (let i = 0; i < 40; i++) { const r = unarmed.push(i / 10, i < 10 ? 100 : 0, false); if (r) early = r; }
+assert.strictEqual(early, null, 'not armed: no detection');
+assert.strictEqual(new WL.BrewStore(new Mem(), 5).meta({ id: 'm', start: 1, dur: 3, rows: [[0, 1, null, 1, 1, 3]], end: { finalG: 37.4 } }).finalG, 37.4);
 console.log('all tests passed');

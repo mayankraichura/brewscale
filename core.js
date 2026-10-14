@@ -85,6 +85,28 @@
     hz() { return this.t.length < 2 ? 0 : (this.t.length - 1) / (this.t[this.t.length - 1] - this.t[0]); }
   }
 
+  // Cup removal: the raw weight falls by `dropG` or more below its highest value of the last `windowS` seconds
+  // (lifting a cup or a server off the scale; no pour or draw makes the weight fall like that).
+  // The brew is complete where the last stable reading ended: endT = the last sample within 0.3 g of that highest
+  // value, finalRaw = the median of the last 3 readings up to it. Feed it unsmoothed readings: push(t, raw, armed).
+  class CupRemoval {
+    constructor(dropG = 20, windowS = 2) { this.dropG = dropG; this.windowS = windowS; this.b = []; }
+    reset() { this.b = []; }
+    push(t, raw, armed = true) {
+      if (raw == null) return null;
+      this.b.push([t, raw]);
+      while (this.b.length && t - this.b[0][0] > this.windowS + 1) this.b.shift();
+      if (!armed) return null;
+      let max = -Infinity;
+      for (const [ts, v] of this.b) if (ts >= t - this.windowS && ts < t) max = Math.max(max, v);
+      if (max - raw < this.dropG) return null;
+      let k = -1;
+      for (let i = 0; i < this.b.length; i++) if (this.b[i][0] >= t - this.windowS && this.b[i][0] < t && this.b[i][1] >= max - 0.3) k = i;
+      const near = this.b.slice(Math.max(0, k - 2), k + 1).map(x => x[1]).sort((a, c) => a - c);
+      return { endT: this.b[k][0], finalRaw: near[near.length >> 1], detectT: t };
+    }
+  }
+
   // Brews kept in the browser storage (localStorage or a compatible object). A brew is
   // {id, start (ms since 1970), label, sm (smoothing samples), dur (s), interrupted, rows: [[t, g, flow, raw, seq, flags], ...]}.
   // Each brew has its own key, a small index lists them (newest first), and the running brew has the key wl.active.
@@ -97,7 +119,7 @@
     index() { const i = this._get('wl.index'); return Array.isArray(i) ? i : []; }
     meta(b) {
       const r = b.rows || [], last = r.length ? r[r.length - 1] : null;
-      return { id: b.id, start: b.start, label: b.label || '', sm: b.sm, dur: b.dur, n: r.length, finalG: last ? last[1] : null, interrupted: !!b.interrupted };
+      return { id: b.id, start: b.start, label: b.label || '', sm: b.sm, dur: b.dur, n: r.length, finalG: b.end && b.end.finalG != null ? b.end.finalG : last ? last[1] : null, interrupted: !!b.interrupted };
     }
     save(b) {
       const idx = this.index().filter(m => m.id !== b.id);
@@ -137,6 +159,6 @@
     return m + ':' + String(s).padStart(2, '0') + '.' + d;
   }
 
-  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
+  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, CupRemoval, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.WL;
 })(typeof self !== 'undefined' ? self : globalThis);

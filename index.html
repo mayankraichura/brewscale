@@ -50,6 +50,7 @@ canvas{width:100%;display:block}#cw{height:230px}#cf{height:170px}
    <label class="note">Smoothing <select id="sm"><option value="1">Off</option><option value="3">3 samples (0.3 s)</option><option value="5">5 samples (0.5 s)</option><option value="10">10 samples (1 s)</option></select></label>
    <button id="zero" disabled title="Only changes what this page shows and logs; the scale is not touched">Zero now</button>
    <label class="note"><input type="checkbox" id="zstart" checked> Zero at start</label>
+   <label class="note"><input type="checkbox" id="cupstop" checked> End brew when the cup is removed (drop of <input id="cupdrop" type="number" min="5" max="500" step="5" value="20" style="width:64px;min-height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--tx);padding:0 6px"> g)</label>
   </div>
   <div class="note" id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
  </div>
@@ -109,6 +110,7 @@ let smN=+pref('sm',3)||3,ma=new WL.MovingAvg(smN);
 let buf=[];                              // rolling live samples {t,g,f}
 let brewing=false,brew=null,t0=0,startedAt=0,viewBrew=null;   // brew = the running brew; viewBrew = a finished brew shown in the charts
 let offset=0,lastRaw=null,connected=false,dirty=false;
+const cup=new WL.CupRemoval(+pref('cupdrop',20)||20,2);
 const T0=performance.now()/1000,now=()=>performance.now()/1000-T0;
 
 // ---- one sample arrives (from Bluetooth or the demo) ----
@@ -116,6 +118,7 @@ function onSample(p){
  const t=now();rate.feed(t);seqT.feed(p.seq);
  const raw=p.g,g=ma.push(raw==null?null:raw-offset),f=flowCalc.push(t,g);
  lastRaw=raw;buf.push({t,g,f});if(buf.length>7000)buf.splice(0,buf.length-6000);
+if(brewing&&$('cupstop').checked){const hit=cup.push(t-t0,raw,t-t0>=2);if(hit){endBrew('cup-removed',hit);return}}   // unsmoothed weight: exact time
  if(brewing)brew.rows.push([+(t-t0).toFixed(2),g==null?null:+g.toFixed(2),f==null?null:+f.toFixed(2),raw==null?null:+raw.toFixed(2),p.seq,p.flags]);
  dirty=true;
 }
@@ -125,16 +128,30 @@ function startBrewing(){
  if(brewing)return;
  if($('zstart').checked&&lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.reset()}
  viewBrew=null;buf=[];                  // clear the charts: the brew starts at t0
- t0=now();startedAt=Date.now();
+ t0=now();startedAt=Date.now();cup.reset();
  brew={id:startedAt.toString(36),start:startedAt,label:$('label').value.trim(),sm:smN,dur:0,interrupted:false,rows:[]};
  brewing=true;store.saveActive(brew);lastSave=Date.now();dirty=true;
 }
-function stopBrewing(){
- if(!brewing||now()-t0<1)return;        // ignore a stop within 1 s of the start (double tap)
- brewing=false;brew.dur=+(now()-t0).toFixed(1);brew.label=$('label').value.trim()||brew.label;
+// A brew ends manually (STOP) or when the cup is removed. For a removal the rows after the last stable reading are dropped.
+function endBrew(reason,hit){
+ if(!brewing)return;
+ let tEnd=+(now()-t0).toFixed(2),finalG;
+ if(reason==='cup-removed'){tEnd=+hit.endT.toFixed(2);brew.rows=brew.rows.filter(r=>r[0]<=tEnd);finalG=+(hit.finalRaw-offset).toFixed(2)}
+ else{const last=[...brew.rows].reverse().find(r=>r[1]!=null);finalG=last?last[1]:null}
+ brewing=false;brew.dur=tEnd;brew.end={reason,t:tEnd,finalG};brew.label=$('label').value.trim()||brew.label;
  const ok=store.save(brew);store.clearActive();viewBrew=brew;brew=null;renderHistory();dirty=true;
  if(!ok)showNotice('The browser storage is full or blocked: this brew was NOT saved. Download or copy the CSV now.');
 }
+function stopBrewing(){if(!brewing||now()-t0<1)return;endBrew('manual')}   // a stop within 1 s of the start is ignored (double tap)
+// "Done at 0:28.7 (cup removed) · yield 37.4 g · first drip 0:03.6 · average flow 1.5 g/s"
+function summary(b){
+ const e=b.end,fd=b.rows.find(r=>r[1]!=null&&r[1]>=1);
+ let txt='Done at '+fmtDur1(b.dur)+(e&&e.reason==='cup-removed'?' (cup removed)':e&&e.reason==='manual'?' (stopped)':b.interrupted?' (interrupted)':'');
+ if(e&&e.finalG!=null)txt+=` · yield ${e.finalG.toFixed(1)} g`;
+ if(fd){txt+=` · first drip ${fmtDur1(fd[0])}`;if(e&&e.finalG!=null&&b.dur>fd[0]+1)txt+=` · average flow ${(e.finalG/(b.dur-fd[0])).toFixed(1)} g/s`}
+ return txt;
+}
+function fmtDur1(s){return WL.fmtTimer(s)}
 let debounceUntil=0;
 $('main').onclick=()=>{
  if(brewing){stopBrewing();return}
@@ -155,7 +172,7 @@ function renderHistory(){
  for(const m of idx){
   const it=document.createElement('div');it.className='it';
   const t=document.createElement('div');t.className='t';
-  t.textContent=`${new Date(m.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}${m.label?' · '+m.label:''} · ${fmtDur(m.dur)} · ${m.finalG==null?'--':m.finalG.toFixed(0)} g${m.interrupted?' · interrupted':''}`;
+  t.textContent=`${new Date(m.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}${m.label?' · '+m.label:''} · ${fmtDur(m.dur)} · ${m.finalG==null?'--':m.finalG.toFixed(1)} g${m.interrupted?' · interrupted':''}`;
   const mk=(txt,fn)=>{const b=document.createElement('button');b.textContent=txt;b.onclick=fn;return b};
   it.append(t,mk('View',()=>{const b=store.get(m.id);if(b){viewBrew=b;dirty=true;scrollTo({top:0,behavior:'smooth'})}}),
    mk('CSV',()=>{const b=store.get(m.id);if(b)saveCsv(b)}),mk('Copy',()=>{const b=store.get(m.id);if(b)copyCsv(b)}),
@@ -184,7 +201,8 @@ function readouts(){
  const b=shown();
  $('timer').textContent=WL.fmtTimer(brewing?now()-t0:b?b.dur:0);
  $('tlab').textContent=brewing?'Brewing':b?'Brew time (finished)':'Brew time';
- $('bstat').textContent=brewing?`Recording: ${brew.rows.length} samples`+(connected||DEMO?'':' · connection lost, reconnecting…'):canStart?'Ready. Pressing start zeroes the weight and clears the charts.':'Connect to the scale, then start.';
+const finished=!brewing&&b;
+ $('bstat').textContent=finished?summary(b):brewing?`Recording: ${brew.rows.length} samples`+(connected||DEMO?'':' · connection lost, reconnecting…'):canStart?'Ready. Pressing start zeroes the weight and clears the charts.':'Connect to the scale, then start.';
  $('ctitle').textContent=b?'Brew'+(b.label?' · '+b.label:'')+(brewing?'':' · '+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})):'Live';
  $('live').hidden=!viewBrew||brewing;$('winl').hidden=!!b;
  $('dl').disabled=!b||!b.rows.length;$('cp').disabled=!b||!b.rows.length;
@@ -263,6 +281,8 @@ $('zero').onclick=()=>{if(lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.rese
 $('sm').value=String(smN);if($('sm').value!==String(smN)){smN=3;$('sm').value='3'}
 $('sm').onchange=()=>{smN=+$('sm').value;ma=new WL.MovingAvg(smN);flowCalc.reset();setPref('sm',smN)};
 $('zstart').checked=pref('zstart','1')==='1';$('zstart').onchange=()=>setPref('zstart',$('zstart').checked?'1':'0');
+$('cupstop').checked=pref('cupstop','1')==='1';$('cupstop').onchange=()=>setPref('cupstop',$('cupstop').checked?'1':'0');
+$('cupdrop').value=pref('cupdrop','20');$('cupdrop').onchange=()=>{const v=Math.max(5,Math.min(500,+$('cupdrop').value||20));$('cupdrop').value=v;cup.dropG=v;setPref('cupdrop',v)};
 $('label').value=pref('label','');$('label').oninput=()=>setPref('label',$('label').value);
 $('win').onchange=()=>{dirty=true};addEventListener('resize',()=>{dirty=true});
 

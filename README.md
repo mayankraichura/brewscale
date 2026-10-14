@@ -10,9 +10,11 @@ the 7-byte packet below will work.
 1. **Connect** to the scale (Chrome, or Bluefy on iPad).
 2. Press **Start brewing**. The page zeroes the weight (switch off with *Zero at start*), clears the charts, sets t0 and starts the timer.
 3. The charts show weight and flow rate against brew time. The big red **STOP** button ends the brew (a stop within 1 s of the start is ignored, so a double tap cannot end it).
-4. The brew is saved in the browser and appears under *Saved brews*. From there you can **View** it again, download or copy its **CSV**, or delete it.
+4. **Espresso / no 3-way valve:** if you lift the cup before the draw is over, the brew ends by itself (option *End brew when the cup is removed*). It triggers when the raw weight falls by 20 g or more (adjustable) within 2 s. The brew is marked complete where the last stable reading ended, the rows after it are dropped, and the weight at that moment is the yield. Small touches of the cup do not trigger it. Put the cup back later: it does not matter, the brew is finished.
+5. The brew is saved in the browser and appears under *Saved brews*. From there you can **View** it again, download or copy its **CSV**, or delete it.
 
 ## Features
+- Finished brews show a summary: completion time, yield, first drip and average flow
 - Timer, live weight and flow readouts, and two charts (live last 30 s to 5 min while idle, the whole brew during and after a brew)
 - Smoothing: moving average over 1 (off), 3, 5 or 10 samples, with a live noise readout
 - "Zero now" button: it only changes what the page shows and logs, the scale is never written to
