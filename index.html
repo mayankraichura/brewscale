@@ -83,7 +83,7 @@ canvas{width:100%;display:block}#cw{height:230px}#cf{height:170px}
  </div>
 
  <div class="card row spread">
-  <div class="row"><button id="dl" disabled>Download CSV</button><button id="cp" disabled>Copy CSV</button></div>
+  <div class="row"><button id="dl" disabled>Download CSV</button><button id="cp" disabled>Copy CSV</button><button id="savebrew" class="p" hidden>Save in browser</button></div>
   <div class="note" id="rs">No brew selected</div>
  </div>
  <div class="card" id="csvbox" hidden>
@@ -93,7 +93,9 @@ canvas{width:100%;display:block}#cw{height:230px}#cf{height:170px}
  </div>
 
  <div class="card">
-  <div class="row spread" style="margin-bottom:4px"><span class="lab">Saved brews (kept in this browser)</span><button id="clearall" hidden>Delete all</button></div>
+  <div class="row spread" style="margin-bottom:4px"><span class="lab">Saved brews (kept in this browser)</span><span class="row"><button id="openfile">Open CSV…</button><button id="clearall" hidden>Delete all</button></span></div>
+  <input id="file" type="file" accept=".csv,text/csv,text/plain,.txt" hidden>
+  <div class="note" id="dropnote" style="margin-bottom:4px">Open a CSV from this page (or drop the file on the page) to view it. It is not saved unless you press Save in browser.</div>
   <div id="hist"><div class="note">No saved brews yet.</div></div>
  </div>
  <div class="note">Read-only: this page only listens to the scale and sends it nothing. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
@@ -138,6 +140,7 @@ function endBrew(reason,hit){
  let tEnd=+(now()-t0).toFixed(2),finalG;
  if(reason==='cup-removed'){tEnd=+hit.endT.toFixed(2);brew.rows=brew.rows.filter(r=>r[0]<=tEnd);finalG=+(hit.finalRaw-offset).toFixed(2)}
  else{const last=[...brew.rows].reverse().find(r=>r[1]!=null);finalG=last?last[1]:null}
+ if(brew.rows.length<5){brewing=false;brew=null;store.clearActive();dirty=true;showNotice('No data was recorded (is the scale connected and sending?): nothing was saved.');return}
  brewing=false;brew.dur=tEnd;brew.end={reason,t:tEnd,finalG};brew.label=$('label').value.trim()||brew.label;
  const ok=store.save(brew);store.clearActive();viewBrew=brew;brew=null;renderHistory();dirty=true;
  if(!ok)showNotice('The browser storage is full or blocked: this brew was NOT saved. Download or copy the CSV now.');
@@ -146,7 +149,7 @@ function stopBrewing(){if(!brewing||now()-t0<1)return;endBrew('manual')}   // a 
 // "Done at 0:28.7 (cup removed) · yield 37.4 g · first drip 0:03.6 · average flow 1.5 g/s"
 function summary(b){
  const e=b.end,fd=b.rows.find(r=>r[1]!=null&&r[1]>=1);
- let txt='Done at '+fmtDur1(b.dur)+(e&&e.reason==='cup-removed'?' (cup removed)':e&&e.reason==='manual'?' (stopped)':b.interrupted?' (interrupted)':'');
+ let txt='Done at '+fmtDur1(b.dur)+(e&&e.reason==='cup-removed'?' (cup removed)':e&&e.reason==='manual'?' (stopped)':e&&e.reason==='imported'?' (uploaded file)':b.interrupted?' (interrupted)':'');
  if(e&&e.finalG!=null)txt+=` · yield ${e.finalG.toFixed(1)} g`;
  if(fd){txt+=` · first drip ${fmtDur1(fd[0])}`;if(e&&e.finalG!=null&&b.dur>fd[0]+1)txt+=` · average flow ${(e.finalG/(b.dur-fd[0])).toFixed(1)} g/s`}
  return txt;
@@ -203,7 +206,8 @@ function readouts(){
  $('tlab').textContent=brewing?'Brewing':b?'Brew time (finished)':'Brew time';
 const finished=!brewing&&b;
  $('bstat').textContent=finished?summary(b):brewing?`Recording: ${brew.rows.length} samples`+(connected||DEMO?'':' · connection lost, reconnecting…'):canStart?'Ready. Pressing start zeroes the weight and clears the charts.':'Connect to the scale, then start.';
- $('ctitle').textContent=b?'Brew'+(b.label?' · '+b.label:'')+(brewing?'':' · '+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})):'Live';
+ $('ctitle').textContent=b?(b.uploaded?'Uploaded · '+b.fileName:'Brew'+(b.label?' · '+b.label:'')+(brewing?'':' · '+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}))):'Live';
+ $('savebrew').hidden=!(viewBrew&&viewBrew.uploaded&&!viewBrew.saved&&!brewing);
  $('live').hidden=!viewBrew||brewing;$('winl').hidden=!!b;
  $('dl').disabled=!b||!b.rows.length;$('cp').disabled=!b||!b.rows.length;
  $('rs').textContent=b?`${b.rows.length} samples, ${fmtDur(brewing?now()-t0:b.dur)}`:'No brew selected';
@@ -307,6 +311,42 @@ async function copyCsv(b){
 }
 $('dl').onclick=()=>{const b=shown();if(b)saveCsv(b)};$('cp').onclick=()=>{const b=shown();if(b)copyCsv(b)};
 $('csvsel').onclick=()=>{$('csvtxt').focus();$('csvtxt').select()};$('csvclose').onclick=()=>{$('csvbox').hidden=true};
+
+// ---- open a CSV exported by this page (button or drop) and view it like a finished brew ----
+async function openCsvFile(file){
+ if(!file)return;
+ if(brewing){showNotice('Stop the running brew first, then open a file.');return}
+ if(file.size>5*1024*1024){showNotice('The file is larger than 5 MB: this is not a Weight Log CSV.');return}
+ let text;
+ try{text=await file.text()}catch(e){showNotice('The file could not be read: '+e.message);return}
+ const res=WL.parseCsv(text);
+ if(res.error){showNotice('Could not open '+file.name+': '+res.error);return}
+ const info=WL.parseFileName(file.name),rows=res.rows.map(r=>[r[0],r[1],r[2]==null?null:r[2],r[3]==null?null:r[3],r[4],r[5]]);
+ // Files from before the cup rule (or recorded with it switched off) still contain the cup lift: apply the same rule to the raw column.
+ let cutNote='';
+ if($('cupstop').checked&&rows.some(r=>r[3]!=null)){
+  const det=new WL.CupRemoval(+$('cupdrop').value||20,2);let hit=null;
+  for(const r of rows){if(r[3]==null)continue;hit=det.push(r[0],r[3],r[0]>=2);if(hit)break}
+  const first=rows.find(r=>r[1]!=null&&r[3]!=null);
+  if(hit&&first){const zero=first[3]-first[1],cut=rows.filter(r=>r[0]<=hit.endT);
+   if(cut.length>=5){rows.length=0;rows.push(...cut);cutNote={endT:hit.endT,finalG:+(hit.finalRaw-zero).toFixed(2)}}}
+ }
+ const lastG=[...rows].reverse().find(r=>r[1]!=null);
+ viewBrew={id:'up'+Date.now().toString(36),start:info.start||file.lastModified||Date.now(),label:info.label!=null?info.label:file.name.replace(/\.csv$/i,'').slice(0,24),
+  sm:info.sm||smN,dur:rows[rows.length-1][0],interrupted:false,uploaded:true,saved:false,fileName:file.name,rows,end:cutNote?{reason:'cup-removed',t:cutNote.endT,finalG:cutNote.finalG}:{reason:'imported',t:rows[rows.length-1][0],finalG:lastG?lastG[1]:null}};
+ if(cutNote)viewBrew.dur=cutNote.endT;
+ dirty=true;scrollTo({top:0,behavior:'smooth'});
+ if(res.bad)showNotice(`${res.bad} line(s) of the file could not be read and were skipped.`);
+}
+$('openfile').onclick=()=>{$('file').value='';$('file').click()};
+$('file').onchange=()=>{const f=$('file').files&&$('file').files[0];openCsvFile(f)};
+addEventListener('dragover',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files'))e.preventDefault()});
+addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length){e.preventDefault();openCsvFile(e.dataTransfer.files[0])}});
+$('savebrew').onclick=()=>{
+ if(!viewBrew||!viewBrew.uploaded)return;
+ const b=viewBrew,ok=store.save({id:b.id,start:b.start,label:b.label,sm:b.sm,dur:b.dur,interrupted:false,rows:b.rows,end:b.end});
+ if(ok){b.saved=true;renderHistory();dirty=true}else showNotice('The browser storage is full or blocked: the file was NOT saved.');
+};
 
 // ---- on load: recover a brew that a reload interrupted, import the log of the older page version ----
 (function recover(){

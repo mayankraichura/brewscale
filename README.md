@@ -11,13 +11,15 @@ the 7-byte packet below will work.
 2. Press **Start brewing**. The page zeroes the weight (switch off with *Zero at start*), clears the charts, sets t0 and starts the timer.
 3. The charts show weight and flow rate against brew time. The big red **STOP** button ends the brew (a stop within 1 s of the start is ignored, so a double tap cannot end it).
 4. **Espresso / no 3-way valve:** if you lift the cup before the draw is over, the brew ends by itself (option *End brew when the cup is removed*). It triggers when the raw weight falls by 20 g or more (adjustable) within 2 s. The brew is marked complete where the last stable reading ended, the rows after it are dropped, and the weight at that moment is the yield. Small touches of the cup do not trigger it. Put the cup back later: it does not matter, the brew is finished.
-5. The brew is saved in the browser and appears under *Saved brews*. From there you can **View** it again, download or copy its **CSV**, or delete it.
+5. **Open CSV…** (or drop a file on the page) shows a CSV that this page exported, as a finished brew, even on another device. It is not saved unless you press *Save in browser*. Files that still contain the cup lift are cut at the cup removal, with the same rule as above.
+6. The brew is saved in the browser and appears under *Saved brews*. From there you can **View** it again, download or copy its **CSV**, or delete it.
 
 ## Features
 - Finished brews show a summary: completion time, yield, first drip and average flow
 - Timer, live weight and flow readouts, and two charts (live last 30 s to 5 min while idle, the whole brew during and after a brew)
 - Smoothing: moving average over 1 (off), 3, 5 or 10 samples, with a live noise readout
 - "Zero now" button: it only changes what the page shows and logs, the scale is never written to
+- Open a downloaded CSV again (button or drag and drop) and view it; optionally save it in the browser
 - Saved brews survive reloads and closed tabs (last 20, in the browser's local storage)
 - If the page is reloaded or crashes during a brew, the part that was recorded is kept as an *interrupted* brew
 - Optional label (used in the file name), CSV download or copy

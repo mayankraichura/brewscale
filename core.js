@@ -153,12 +153,47 @@
   function rowsToCsv(rows) {
     return toCsv(rows.map(r => ({ t: r[0], g: r[1], f: r[2], raw: r[3], seq: r[4], flags: r[5] })));
   }
+  // Reads a CSV exported by this page (time_s,weight_g,flow_gps,raw_g,seq,flags). Columns are found by name; the flow is
+  // computed when it is missing; with only raw_g the weight is raw_g minus the first reading. Returns {rows, bad} or {error}.
+  function parseCsv(text) {
+    text = String(text || '').replace(/^\uFEFF/, '');
+    const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+    if (lines.length < 2) return { error: 'The file has no data rows.' };
+    const head = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+    const col = n => head.indexOf(n);
+    const ct = col('time_s'), cg = col('weight_g'), cf = col('flow_gps'), cr = col('raw_g'), cs = col('seq'), cl = col('flags');
+    if (ct < 0 || (cg < 0 && cr < 0)) return { error: 'This does not look like a Weight Log CSV: it needs the columns time_s and weight_g.' };
+    const num = v => { if (v === undefined) return null; v = String(v).trim().replace(/^"|"$/g, ''); if (v === '') return null; const x = parseFloat(v); return Number.isFinite(x) ? x : null; };
+    const rows = []; let bad = 0, firstRaw = null;
+    for (let i = 1; i < lines.length; i++) {
+      const c = lines[i].split(',');
+      const t = num(c[ct]);
+      if (t == null) { bad++; continue; }
+      const raw = cr >= 0 ? num(c[cr]) : null;
+      let g = cg >= 0 ? num(c[cg]) : null;
+      if (cg < 0 && raw != null) { if (firstRaw == null) firstRaw = raw; g = raw - firstRaw; }
+      rows.push([t, g, cf >= 0 ? num(c[cf]) : undefined, raw, cs >= 0 ? (num(c[cs]) || 0) : 0, cl >= 0 ? (num(c[cl]) || 0) : 0]);
+    }
+    if (rows.length < 5) return { error: 'Fewer than 5 valid rows were found in the file.' };
+    for (let i = 1; i < rows.length; i++) if (rows[i][0] < rows[i - 1][0]) return { error: 'Time goes backwards at data row ' + (i + 1) + ': this is not a single brew.' };
+    if (cf < 0) { const fc = new FlowCalc(); for (const r of rows) r[2] = fc.push(r[0], r[1]); }
+    return { rows, bad };
+  }
+
+  // weightlog-<label>-<raw|maN>-YYYYMMDD-HHMMSS.csv -> {label, sm, start}; fields are null when the name has another form
+  function parseFileName(name) {
+    const m = /^weightlog-(?:(.*?)-)?(raw|ma\d+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})\.csv$/i.exec(String(name || ''));
+    if (!m) return { label: null, sm: null, start: null };
+    return { label: m[1] || '', sm: m[2].toLowerCase() === 'raw' ? 1 : parseInt(m[2].slice(2), 10),
+      start: new Date(+m[3], +m[4] - 1, +m[5], +m[6], +m[7], +m[8]).getTime() };
+  }
+
   // 83.4 -> "1:23.4" (timer display)
   function fmtTimer(sec) {
     const t = Math.max(0, Math.floor(sec * 10 + 1e-9)), m = Math.floor(t / 600), s = Math.floor((t % 600) / 10), d = t % 10;
     return m + ':' + String(s).padStart(2, '0') + '.' + d;
   }
 
-  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, CupRemoval, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
+  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, CupRemoval, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.WL;
 })(typeof self !== 'undefined' ? self : globalThis);

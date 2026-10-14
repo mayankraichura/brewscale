@@ -103,4 +103,25 @@ const unarmed = new WL.CupRemoval(20, 2); let early = null;
 for (let i = 0; i < 40; i++) { const r = unarmed.push(i / 10, i < 10 ? 100 : 0, false); if (r) early = r; }
 assert.strictEqual(early, null, 'not armed: no detection');
 assert.strictEqual(new WL.BrewStore(new Mem(), 5).meta({ id: 'm', start: 1, dur: 3, rows: [[0, 1, null, 1, 1, 3]], end: { finalG: 37.4 } }).finalG, 37.4);
+// 9. CSV upload: round trip, tolerant parsing, clear errors, file name parsing
+const rows0 = Array.from({ length: 60 }, (_, i) => [+(i / 10).toFixed(2), +(i * 0.5).toFixed(2), i < 15 ? null : 5, +(i * 0.5 - 200).toFixed(2), 100 + i, 3]);
+let pc = WL.parseCsv(WL.rowsToCsv(rows0));
+assert.ok(!pc.error && pc.rows.length === 60 && pc.bad === 0);
+assert.deepStrictEqual(pc.rows[20], rows0[20]); assert.strictEqual(pc.rows[3][2], null);
+pc = WL.parseCsv('\uFEFF' + WL.rowsToCsv(rows0).replace(/\n/g, '\r\n'));
+assert.ok(!pc.error && pc.rows.length === 60, 'CRLF and BOM');
+pc = WL.parseCsv('time_s,weight_g\n' + rows0.map(r => r[0] + ',' + r[1]).join('\n'));
+assert.ok(!pc.error && pc.rows[40][2] != null && Math.abs(pc.rows[40][2] - 5) < 0.01, 'flow computed when the column is missing: ' + (pc.rows[40] && pc.rows[40][2]));
+pc = WL.parseCsv('time_s,raw_g\n' + rows0.map(r => r[0] + ',' + r[3]).join('\n'));
+assert.ok(!pc.error && pc.rows[0][1] === 0 && Math.abs(pc.rows[59][1] - 29.5) < 1e-9, 'weight from raw_g minus the first reading');
+assert.ok(/does not look like/.test(WL.parseCsv('a,b\n1,2\n3,4').error));
+assert.ok(/no data rows/.test(WL.parseCsv('time_s,weight_g\n').error));
+assert.ok(/Fewer than 5/.test(WL.parseCsv('time_s,weight_g\n0,1\n1,2\n2,3').error));
+assert.ok(/backwards/.test(WL.parseCsv('time_s,weight_g\n0,1\n1,2\n2,3\n3,4\n2,5\n6,7').error));
+pc = WL.parseCsv(WL.rowsToCsv(rows0) + 'x,y,z\n'); assert.strictEqual(pc.bad, 1, 'a bad line is counted, not fatal');
+let fn = WL.parseFileName('weightlog-Pump-on-empty-cup-ma10-20261015-032139.csv');
+assert.deepStrictEqual([fn.label, fn.sm, new Date(fn.start).getFullYear(), new Date(fn.start).getMinutes()], ['Pump-on-empty-cup', 10, 2026, 21]);
+fn = WL.parseFileName('weightlog-raw-20261013-092553.csv'); assert.deepStrictEqual([fn.label, fn.sm], ['', 1]);
+fn = WL.parseFileName('weightlog-ma3-20261013-131225.csv'); assert.deepStrictEqual([fn.label, fn.sm], ['', 3]);
+fn = WL.parseFileName('my brew.csv'); assert.deepStrictEqual([fn.label, fn.sm, fn.start], [null, null, null]);
 console.log('all tests passed');
