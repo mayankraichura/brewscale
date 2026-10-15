@@ -153,6 +153,24 @@
   function rowsToCsv(rows) {
     return toCsv(rows.map(r => ({ t: r[0], g: r[1], f: r[2], raw: r[3], seq: r[4], flags: r[5] })));
   }
+  // Time (s) of the first drip: the first row with a weight of 1 g or more; null if the weight never gets there.
+  function firstDripTime(rows) {
+    for (const r of rows) if (r[1] != null && r[1] >= 1) return r[0];
+    return null;
+  }
+  // Numbers for the comparison table: {dur, firstDrip, yieldG, avgFlow, peakFlow}. A brew is {rows, dur, end?}.
+  // avgFlow = yield / (completion - first drip); peakFlow = highest flow after the first drip (null if none).
+  function brewMetrics(b) {
+    const rows = b.rows || [], last = [...rows].reverse().find(r => r[1] != null);
+    const dur = b.dur != null ? b.dur : rows.length ? rows[rows.length - 1][0] : 0;
+    const yieldG = b.end && b.end.finalG != null ? b.end.finalG : last ? last[1] : null;
+    const fd = firstDripTime(rows);
+    const avgFlow = fd != null && yieldG != null && dur - fd > 1 ? yieldG / (dur - fd) : null;
+    let peak = null;
+    for (const r of rows) if (fd != null && r[0] >= fd && r[2] != null && (peak == null || r[2] > peak)) peak = r[2];
+    return { dur, firstDrip: fd, yieldG, avgFlow, peakFlow: peak };
+  }
+
   // Reads a CSV exported by this page (time_s,weight_g,flow_gps,raw_g,seq,flags). Columns are found by name; the flow is
   // computed when it is missing; with only raw_g the weight is raw_g minus the first reading. Returns {rows, bad} or {error}.
   function parseCsv(text) {
@@ -194,6 +212,6 @@
     return m + ':' + String(s).padStart(2, '0') + '.' + d;
   }
 
-  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, CupRemoval, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
+  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, CupRemoval, firstDripTime, brewMetrics, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.WL;
 })(typeof self !== 'undefined' ? self : globalThis);

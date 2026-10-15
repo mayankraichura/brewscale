@@ -6,17 +6,19 @@
 :root{--bg:#12100E;--card:#1C1916;--line:#2A2622;--tx:#F4EFE8;--mu:#9A9085;--ac:#E8955A;--w:#6FB1E0;--ok:#7BC47F;--bad:#E2735C;--stop:#D93B30}
 @media (prefers-color-scheme:light){:root{--bg:#F6F1EA;--card:#FFFFFF;--line:#E4DCD0;--tx:#241F1A;--mu:#6F665B;--ac:#C8672B;--w:#2F7DB5;--ok:#2F8F4A;--bad:#B8432C;--stop:#C62F25}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,sans-serif;min-height:100vh}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:radial-gradient(1100px 520px at 88% -8%,rgba(232,149,90,.13),transparent 62%),var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,sans-serif;min-height:100vh}
 main{max-width:1100px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 28px 16px;display:flex;flex-direction:column;gap:14px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.spread{justify-content:space-between}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0)),var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
 h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
 .lab{font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.08em}
 .num{font-variant-numeric:tabular-nums;font-weight:600;line-height:1}
 .big{font-size:clamp(44px,10vw,88px)}
+.timer{font-size:clamp(56px,14vw,120px)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media (max-width:560px){.grid{grid-template-columns:1fr}}
-button,select,input[type=text]{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;min-height:44px}
+button,select,input[type=text],input[type=number]{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;min-height:44px}
 button{cursor:pointer}
 button.p{background:var(--ac);border-color:var(--ac);color:#12100E;font-weight:650}
 button:disabled{opacity:.45;cursor:default}
@@ -27,78 +29,126 @@ button:disabled{opacity:.45;cursor:default}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--mu)}
 .dot.on{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.rec{background:var(--stop);animation:b 1s infinite}
 @keyframes b{50%{opacity:.25}}
-canvas{width:100%;display:block}#cw{height:230px}#cf{height:170px}
+.cwrap{position:relative}.cwrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#wwrap{height:230px}#fwrap{height:170px}
 .note{font-size:13px;color:var(--mu)}.neg{color:var(--bad)}
-.timer{font-size:clamp(56px,14vw,120px)}
 #hist .it{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
-#hist .it:first-child{border-top:0}#hist .it .t{flex:1;min-width:200px}
+#hist .it:first-child{border-top:0}#hist .it .t{flex:1;min-width:180px}
 #hist button{min-height:38px;padding:0 12px}
 .warn{border-color:var(--ac)}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;width:min(720px,92vw);max-height:86vh;overflow:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
+#top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+#top .grp{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#menu,#openSaved,.dclose{display:none}
+#scrim{display:none}
+#colL,#colR{display:contents}
+#brewcard{order:1}#readcard{order:2}#chartcard{order:3}#cmpcard{order:4}
+.bgrid{display:grid;grid-template-columns:1fr;gap:12px}
+@media (max-width:560px){.grid{grid-template-columns:1fr}}
+
+/* Tablet landscape / desktop: a dashboard that fits one screen */
+@media (min-width:900px){
+ html,body{height:100%;overflow:hidden}
+ main{max-width:none;height:100dvh;padding:12px 16px 14px;gap:12px}
+ #menu,#openSaved{display:inline-flex;align-items:center}
+ #dash{flex:1;min-height:0;display:grid;grid-template-columns:minmax(380px,38%) 1fr;gap:14px}
+ #colL,#colR{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
+ #brewcard,#readcard,#chartcard,#cmpcard{order:0}
+ #readcard{flex:none}
+ #brewcard{flex:1 1 auto;display:flex;flex-direction:column;gap:10px}
+ .bgrid{flex:1 1 auto;grid-template-columns:auto 1fr;align-items:stretch}
+ .timer{font-size:clamp(48px,5.6vw,96px)}
+ .big{font-size:clamp(40px,4.6vw,76px)}
+ #main{height:100%;min-height:104px;font-size:26px}
+ #chartcard{flex:1 1 auto;display:flex;flex-direction:column;min-height:300px}
+ #wwrap{height:auto;flex:3 1 0;min-height:110px}#fwrap{height:auto;flex:2 1 0;min-height:90px}
+ #cmpcard{flex:none}
+ .drawer{position:fixed;top:0;bottom:0;z-index:30;width:min(520px,92vw);margin:0;border-radius:0;overflow:auto;visibility:hidden;transition:transform .22s,visibility 0s .22s;box-shadow:0 0 40px rgba(0,0,0,.5)}
+ #settings{left:0;transform:translateX(-105%);border-left:0}
+ #saved{right:0;transform:translateX(105%);border-right:0}
+ #settings.open,#saved.open{transform:none;visibility:visible;transition:transform .22s}
+ .dclose{display:inline-flex;align-items:center}
+ #scrim{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.5)}
+ #scrim.show{display:block}
+ #aboutnote{display:block}
+}
 </style></head><body>
 <main>
- <div class="row spread">
-  <h1>Weight Log <span class="note" id="mode"></span></h1>
-  <div class="row">
+ <header id="top">
+  <div class="grp"><button id="menu" aria-label="Settings" title="Settings">☰ Settings</button><h1>Weight Log <span class="note" id="mode"></span></h1></div>
+  <div class="grp">
    <div class="pill"><span class="dot" id="cd"></span><span id="cs">Not connected</span></div>
    <div class="pill"><span id="hz">0.0</span> Hz · lost <span id="lost">0</span></div>
   </div>
- </div>
+  <div class="grp"><button id="openSaved">Saved brews</button><button class="p" id="connect">Connect to BrewScale</button></div>
+ </header>
 
- <div class="card row spread">
-  <div class="row">
-   <button class="p" id="connect">Connect to BrewScale</button>
-   <label class="note">Smoothing <select id="sm"><option value="1">Off</option><option value="3">3 samples (0.3 s)</option><option value="5">5 samples (0.5 s)</option><option value="10">10 samples (1 s)</option></select></label>
-   <button id="zero" disabled title="Only changes what this page shows and logs; the scale is not touched">Zero now</button>
-   <label class="note"><input type="checkbox" id="zstart" checked> Zero at start</label>
-   <label class="note"><input type="checkbox" id="cupstop" checked> End brew when the cup is removed (drop of <input id="cupdrop" type="number" min="5" max="500" step="5" value="20" style="width:64px;min-height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--tx);padding:0 6px"> g)</label>
-  </div>
-  <div class="note" id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
- </div>
-
- <div class="card warn" id="notice" hidden>
+ <div class="card warn modal" id="notice" hidden>
   <div id="noticemsg"></div>
-  <div class="row" style="margin-top:8px"><button id="noticeok">OK</button></div>
+  <div class="row" style="margin-top:10px"><button class="p" id="noticeok">OK</button></div>
  </div>
-
- <div class="card">
-  <div class="row spread" style="align-items:flex-end">
-   <div><div class="lab" id="tlab">Brew time</div><div class="num timer" id="timer">0:00.0</div></div>
-   <div class="row"><input id="label" type="text" maxlength="24" placeholder="Label (optional)" aria-label="Label for this brew" style="width:190px"></div>
-  </div>
-  <div style="margin-top:12px"><button id="main" class="go" disabled>Start brewing</button></div>
-  <div class="note" id="bstat" style="margin-top:8px">Connect to the scale, then start.</div>
- </div>
-
- <div class="grid">
-  <div class="card"><div class="lab">Weight</div><div><span class="num big" id="wv">--</span> <span class="note">g</span></div><div class="note">noise (last 5 s): <span id="nz">--</span> g</div></div>
-  <div class="card"><div class="lab">Flow</div><div><span class="num big" id="fv">--</span> <span class="note">g/s</span></div></div>
- </div>
-
- <div class="card">
-  <div class="row spread" style="margin-bottom:6px"><span class="lab" id="ctitle">Live</span>
-   <span class="row"><button id="live" hidden>Back to live</button>
-   <label class="note" id="winl">Window <select id="win"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></label></span></div>
-  <div class="lab">Weight (g)</div><canvas id="cw"></canvas>
-  <div class="lab" style="margin:10px 0 6px">Flow (g/s)</div><canvas id="cf"></canvas>
- </div>
-
- <div class="card row spread">
-  <div class="row"><button id="dl" disabled>Download CSV</button><button id="cp" disabled>Copy CSV</button><button id="savebrew" class="p" hidden>Save in browser</button></div>
-  <div class="note" id="rs">No brew selected</div>
- </div>
- <div class="card" id="csvbox" hidden>
+ <div class="card modal" id="csvbox" hidden>
   <div class="note" id="csvmsg" style="margin-bottom:8px"></div>
   <textarea id="csvtxt" readonly rows="8" style="width:100%;font:12px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:10px"></textarea>
   <div class="row" style="margin-top:8px"><button id="csvsel">Select all</button><button id="csvclose">Close</button></div>
  </div>
 
- <div class="card">
-  <div class="row spread" style="margin-bottom:4px"><span class="lab">Saved brews (kept in this browser)</span><span class="row"><button id="openfile">Open CSV…</button><button id="clearall" hidden>Delete all</button></span></div>
+ <div id="dash">
+  <div id="colL">
+   <section class="grid" id="readcard">
+    <div class="card"><div class="lab">Weight</div><div><span class="num big" id="wv">--</span> <span class="note">g</span></div><div class="note">noise (last 5 s): <span id="nz">--</span> g</div></div>
+    <div class="card"><div class="lab">Flow</div><div><span class="num big" id="fv">--</span> <span class="note">g/s</span></div></div>
+   </section>
+   <section class="card" id="brewcard">
+    <div class="bgrid">
+     <div><div class="lab" id="tlab">Brew time</div><div class="num timer" id="timer">0:00.0</div></div>
+     <div><button id="main" class="go" disabled>Start brewing</button></div>
+    </div>
+    <div>
+     <div class="row spread" style="margin-top:10px"><input id="label" type="text" maxlength="24" placeholder="Label (optional)" aria-label="Label for this brew" style="width:190px"></div>
+     <div class="note" id="bstat" style="margin-top:8px">Connect to the scale, then start.</div>
+    </div>
+   </section>
+  </div>
+  <div id="colR">
+   <section class="card" id="chartcard">
+    <div class="row spread" style="margin-bottom:6px"><span class="lab" id="ctitle">Live</span>
+     <span class="row"><button id="live" hidden>Back to live</button>
+     <label class="note" id="winl">Window <select id="win"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></label></span></div>
+    <div class="lab">Weight (g)</div><div class="cwrap" id="wwrap"><canvas id="cw"></canvas></div>
+    <div class="lab" style="margin:10px 0 6px">Flow (g/s)</div><div class="cwrap" id="fwrap"><canvas id="cf"></canvas></div>
+    <div class="row spread" style="margin-top:10px" id="actions">
+     <div class="row"><button id="dl" disabled>Download CSV</button><button id="cp" disabled>Copy CSV</button><button id="savebrew" class="p" hidden>Save in browser</button></div>
+     <div class="note" id="rs">No brew selected</div>
+    </div>
+   </section>
+   <section class="card" id="cmpcard" hidden>
+    <div class="row spread" style="margin-bottom:6px"><span class="lab">Compare</span>
+     <span class="row"><label class="note">Time zero at <select id="calign"><option value="start">Brew start</option><option value="drip">First drip</option></select></label><button id="cmpexit">Exit compare</button></span></div>
+    <div style="overflow-x:auto"><table id="cmptab" style="border-collapse:collapse;width:100%;font-size:14px"></table></div>
+    <div class="note" style="margin-top:6px">Flow is shown as recorded: brews with a different smoothing look smoother or rougher. Line styles differ as well as colours.</div>
+   </section>
+  </div>
+ </div>
+
+ <aside class="card drawer" id="settings" aria-label="Settings">
+  <div class="row spread" style="margin-bottom:10px"><span class="lab">Settings</span><button class="dclose" id="sclose" aria-label="Close">✕</button></div>
+  <div class="row" style="flex-direction:column;align-items:flex-start;gap:12px">
+   <label class="note">Smoothing <select id="sm"><option value="1">Off</option><option value="3">3 samples (0.3 s)</option><option value="5">5 samples (0.5 s)</option><option value="10">10 samples (1 s)</option></select></label>
+   <button id="zero" disabled title="Only changes what this page shows and logs; the scale is not touched">Zero now</button>
+   <label class="note"><input type="checkbox" id="zstart" checked> Zero at start</label>
+   <label class="note"><input type="checkbox" id="cupstop" checked> End brew when the cup is removed (drop of <input id="cupdrop" type="number" min="5" max="500" step="5" value="20" style="width:70px;min-height:36px;border-radius:10px;padding:0 6px"> g)</label>
+   <div class="note" id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
+   <div class="note" id="aboutnote">Read-only: this page only listens to the scale and sends it nothing. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
+  </div>
+ </aside>
+ <aside class="card drawer" id="saved" aria-label="Saved brews">
+  <div class="row spread" style="margin-bottom:4px"><span class="lab">Saved brews (kept in this browser)</span><span class="row"><button id="compare" disabled>Compare (0)</button><button id="openfile">Open CSV…</button><button id="clearall" hidden>Delete all</button><button class="dclose" id="hclose" aria-label="Close">✕</button></span></div>
   <input id="file" type="file" accept=".csv,text/csv,text/plain,.txt" hidden>
   <div class="note" id="dropnote" style="margin-bottom:4px">Open a CSV from this page (or drop the file on the page) to view it. It is not saved unless you press Save in browser.</div>
   <div id="hist"><div class="note">No saved brews yet.</div></div>
- </div>
- <div class="note">Read-only: this page only listens to the scale and sends it nothing. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
+ </aside>
+ <div id="scrim"></div>
 </main>
 <script src="core.js"></script>
 <script>
@@ -129,7 +179,7 @@ if(brewing&&$('cupstop').checked){const hit=cup.push(t-t0,raw,t-t0>=2);if(hit){e
 function startBrewing(){
  if(brewing)return;
  if($('zstart').checked&&lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.reset()}
- viewBrew=null;buf=[];                  // clear the charts: the brew starts at t0
+ viewBrew=null;cmp=null;buf=[];          // clear the charts: the brew starts at t0
  t0=now();startedAt=Date.now();cup.reset();
  brew={id:startedAt.toString(36),start:startedAt,label:$('label').value.trim(),sm:smN,dur:0,interrupted:false,rows:[]};
  brewing=true;store.saveActive(brew);lastSave=Date.now();dirty=true;
@@ -166,10 +216,51 @@ setInterval(()=>autosave(false),1000);
 addEventListener('pagehide',()=>autosave(true));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave(true)});
 
+// ---- panels (tablet layout): settings from the left, saved brews from the right ----
+function closeDrawers(){for(const d of document.querySelectorAll('.drawer'))d.classList.remove('open');$('scrim').classList.remove('show')}
+function openDrawer(id){closeDrawers();$(id).classList.add('open');$('scrim').classList.add('show')}
+$('menu').onclick=()=>openDrawer('settings');$('openSaved').onclick=()=>openDrawer('saved');
+$('scrim').onclick=closeDrawers;$('sclose').onclick=closeDrawers;$('hclose').onclick=closeDrawers;
+addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawers();$('notice').hidden=true;$('csvbox').hidden=true}});
+
+// ---- compare: overlay 2 to 4 saved brews ----
+const CMP_STYLE=[{color:'#E8955A',dash:[]},{color:'#6FB1E0',dash:[8,5]},{color:'#7BC47F',dash:[2,4]},{color:'#C79BE0',dash:[10,4,2,4]}];
+let selected=new Set(),cmp=null;
+function cmpName(b){return (b.label?b.label+' · ':'')+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}
+function cmpShift(b){return cmp.align==='drip'?(WL.firstDripTime(b.rows)||0):0}
+function drawCompare(cw,cf){
+ const bs=cmp.brews;let x0=0,x1=30;
+ for(const b of bs){const sh=cmpShift(b);x0=Math.min(x0,-sh);x1=Math.max(x1,b.dur-sh)}
+ x0=Math.floor(x0/5)*5;x1=Math.max(30,Math.ceil(x1/10)*10);
+ const ser=(i,b,col)=>({color:CMP_STYLE[i].color,dash:CMP_STYLE[i].dash,pts:b.rows.filter(r=>r[col]!=null).map(r=>({t:r[0]-cmpShift(b),v:r[col]}))});
+ drawSeries(cw,bs.map((b,i)=>ser(i,b,1)),false,5,x0,x1,false);
+ drawSeries(cf,bs.map((b,i)=>ser(i,b,2)),true,4,x0,x1,false);
+}
+function renderCompareTable(){
+ const tab=$('cmptab');tab.textContent='';
+ const head=['','Brew','Smoothing','First drip','Complete at','Yield','Avg flow','Peak flow'],tr0=document.createElement('tr');
+ for(const h of head){const th=document.createElement('th');th.textContent=h;th.style.cssText='text-align:left;font-weight:600;color:var(--mu);font-size:12px;padding:4px 10px 6px 0;white-space:nowrap';tr0.append(th)}tab.append(tr0);
+ cmp.brews.forEach((b,i)=>{
+  const m=WL.brewMetrics(b),tr=document.createElement('tr'),cell=(txt)=>{const td=document.createElement('td');td.textContent=txt;td.style.cssText='padding:5px 10px 5px 0;white-space:nowrap;border-top:1px solid var(--line)';tr.append(td);return td};
+  const sw=cell('');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('width','34');svg.setAttribute('height','10');
+  const ln=document.createElementNS('http://www.w3.org/2000/svg','line');ln.setAttribute('x1','1');ln.setAttribute('x2','33');ln.setAttribute('y1','5');ln.setAttribute('y2','5');ln.setAttribute('stroke',CMP_STYLE[i].color);ln.setAttribute('stroke-width','3');if(CMP_STYLE[i].dash.length)ln.setAttribute('stroke-dasharray',CMP_STYLE[i].dash.join(' '));svg.append(ln);sw.append(svg);
+  cell(cmpName(b));cell(b.sm===1?'off':b.sm+' samples');
+  cell(m.firstDrip==null?'--':WL.fmtTimer(m.firstDrip));cell(WL.fmtTimer(m.dur));cell(m.yieldG==null?'--':m.yieldG.toFixed(1)+' g');
+  cell(m.avgFlow==null?'--':m.avgFlow.toFixed(2)+' g/s');cell(m.peakFlow==null?'--':m.peakFlow.toFixed(2)+' g/s');tab.append(tr)});
+}
+$('compare').onclick=()=>{
+ if(brewing)return;
+ const bs=[...selected].map(id=>store.get(id)).filter(Boolean).sort((a,b)=>a.start-b.start);
+ if(bs.length<2){showNotice('Select at least 2 saved brews (tick the boxes in the list).');return}
+ cmp={brews:bs,align:$('calign').value};viewBrew=null;renderCompareTable();dirty=true;closeDrawers();scrollTo({top:0,behavior:'smooth'});
+};
+$('cmpexit').onclick=()=>{cmp=null;dirty=true};
+$('calign').onchange=()=>{if(cmp){cmp.align=$('calign').value;dirty=true}};
+
 // ---- saved brews ----
 function fmtDur(s){return WL.fmtTimer(s).replace(/\.\d$/,'')}
 function renderHistory(){
- const idx=store.index(),box=$('hist');box.textContent='';
+ const idx=store.index(),box=$('hist');box.textContent='';$('openSaved').textContent='Saved brews ('+idx.length+')';
  $('clearall').hidden=!idx.length;
  if(!idx.length){const d=document.createElement('div');d.className='note';d.textContent='No saved brews yet.';box.append(d);return}
  for(const m of idx){
@@ -177,19 +268,21 @@ function renderHistory(){
   const t=document.createElement('div');t.className='t';
   t.textContent=`${new Date(m.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}${m.label?' · '+m.label:''} · ${fmtDur(m.dur)} · ${m.finalG==null?'--':m.finalG.toFixed(1)} g${m.interrupted?' · interrupted':''}`;
   const mk=(txt,fn)=>{const b=document.createElement('button');b.textContent=txt;b.onclick=fn;return b};
-  it.append(t,mk('View',()=>{const b=store.get(m.id);if(b){viewBrew=b;dirty=true;scrollTo({top:0,behavior:'smooth'})}}),
+  const cb=document.createElement('input');cb.type='checkbox';cb.checked=selected.has(m.id);cb.setAttribute('aria-label','Select for compare');cb.style.cssText='width:22px;height:22px';
+  cb.onchange=()=>{if(cb.checked){if(selected.size>=4){cb.checked=false;showNotice('You can compare up to 4 brews at a time.');return}selected.add(m.id)}else selected.delete(m.id);dirty=true};
+  it.append(cb,t,mk('View',()=>{const b=store.get(m.id);if(b){viewBrew=b;cmp=null;dirty=true;closeDrawers();scrollTo({top:0,behavior:'smooth'})}}),
    mk('CSV',()=>{const b=store.get(m.id);if(b)saveCsv(b)}),mk('Copy',()=>{const b=store.get(m.id);if(b)copyCsv(b)}),
-   mk('Delete',()=>{if(confirm('Delete this brew?')){store.remove(m.id);if(viewBrew&&viewBrew.id===m.id)viewBrew=null;renderHistory();dirty=true}}));
+   mk('Delete',()=>{if(confirm('Delete this brew?')){store.remove(m.id);selected.delete(m.id);if(viewBrew&&viewBrew.id===m.id)viewBrew=null;if(cmp){cmp.brews=cmp.brews.filter(x=>x.id!==m.id);if(cmp.brews.length<2)cmp=null}renderHistory();dirty=true}}));
   box.append(it);
  }
 }
-$('clearall').onclick=()=>{if(confirm('Delete ALL saved brews from this browser?')){store.clearAll();viewBrew=null;renderHistory();dirty=true}};
+$('clearall').onclick=()=>{if(confirm('Delete ALL saved brews from this browser?')){store.clearAll();viewBrew=null;selected.clear();cmp=null;renderHistory();dirty=true}};
 $('live').onclick=()=>{viewBrew=null;dirty=true};
 function showNotice(msg){$('noticemsg').textContent=msg;$('notice').hidden=false}
 $('noticeok').onclick=()=>{$('notice').hidden=true};
 
 // ---- readouts + charts ----
-function shown(){return brewing?brew:viewBrew}
+function shown(){return brewing?brew:cmp?null:viewBrew}
 function readouts(){
  const l=buf[buf.length-1];
  if(!l||now()-l.t>2){$('wv').textContent='--';$('fv').textContent='--'}
@@ -208,7 +301,9 @@ const finished=!brewing&&b;
  $('bstat').textContent=finished?summary(b):brewing?`Recording: ${brew.rows.length} samples`+(connected||DEMO?'':' · connection lost, reconnecting…'):canStart?'Ready. Pressing start zeroes the weight and clears the charts.':'Connect to the scale, then start.';
  $('ctitle').textContent=b?(b.uploaded?'Uploaded · '+b.fileName:'Brew'+(b.label?' · '+b.label:'')+(brewing?'':' · '+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}))):'Live';
  $('savebrew').hidden=!(viewBrew&&viewBrew.uploaded&&!viewBrew.saved&&!brewing);
- $('live').hidden=!viewBrew||brewing;$('winl').hidden=!!b;
+ $('live').hidden=!viewBrew||brewing||!!cmp;$('winl').hidden=!!b||!!cmp;
+ $('cmpcard').hidden=!cmp;if(cmp){$('ctitle').textContent='Compare · '+cmp.brews.length+' brews';$('bstat').textContent='Comparing '+cmp.brews.length+' saved brews. Press Exit compare to go back.'}
+ $('compare').disabled=selected.size<2||brewing;$('compare').textContent='Compare ('+selected.size+')';
  $('dl').disabled=!b||!b.rows.length;$('cp').disabled=!b||!b.rows.length;
  $('rs').textContent=b?`${b.rows.length} samples, ${fmtDur(brewing?now()-t0:b.dur)}`:'No brew selected';
 }
@@ -220,10 +315,12 @@ function niceStep(s){const p=Math.pow(10,Math.floor(Math.log10(s))),m=s/p;return
 function mmss(sec){const a=Math.round(sec);return Math.floor(a/60)+':'+String(a%60).padStart(2,'0')}
 function fmtBack(d){const a=Math.round(-d);return a===0?'now':a>=60?`−${Math.floor(a/60)}:${String(a%60).padStart(2,'0')}`:`−${a} s`}
 // pts: [{t,v}] ; live: x counts back from now, brew: x = brew time from 0
-function drawChart(c,pts,color,zeroLine,minSpan,x0,x1,live){
+function drawChart(c,pts,color,zeroLine,minSpan,x0,x1,live){drawSeries(c,[{pts,color,dot:true}],zeroLine,minSpan,x0,x1,live)}
+// series: [{pts:[{t,v}], color, dash:[..], dot}] ; live: x counts back from now, else x = time (may be negative when aligned)
+function drawSeries(c,series,zeroLine,minSpan,x0,x1,live){
  const[x,W,H]=setupCanvas(c);if(!W)return;
- let lo=Infinity,hi=-Infinity;for(const p of pts){lo=Math.min(lo,p.v);hi=Math.max(hi,p.v)}
- if(!pts.length){lo=0;hi=minSpan}
+ let lo=Infinity,hi=-Infinity,any=false;for(const se of series)for(const p of se.pts){any=true;lo=Math.min(lo,p.v);hi=Math.max(hi,p.v)}
+ if(!any){lo=0;hi=minSpan}
  if(zeroLine){lo=Math.min(lo,0);hi=Math.max(hi,0)}
  if(hi-lo<minSpan){const m=(hi+lo)/2;lo=m-minSpan/2;hi=m+minSpan/2}
  const pad=(hi-lo)*.08;lo-=pad;hi+=pad;
@@ -234,16 +331,18 @@ function drawChart(c,pts,color,zeroLine,minSpan,x0,x1,live){
  x.textBaseline='alphabetic';x.textAlign='center';
  const steps=[5,10,15,30,60,120,300,600],ts=steps.find(s=>(x1-x0)/s<=7)||600;
  if(live){for(let k=0;x1-k*ts>=x0;k++)x.fillText(fmtBack(-k*ts),Math.max(px(x1-k*ts),L+10),H-3)}
- else{for(let t=0;t<=x1;t+=ts){const X=px(t);x.strokeStyle=css('--line');x.beginPath();x.moveTo(Math.round(X)+.5,T);x.lineTo(Math.round(X)+.5,T+PH);x.stroke();x.fillText(mmss(t),Math.max(X,L+10),H-3)}}
+ else{for(let t=Math.ceil(x0/ts)*ts;t<=x1;t+=ts){const X=px(t);x.strokeStyle=css('--line');x.beginPath();x.moveTo(Math.round(X)+.5,T);x.lineTo(Math.round(X)+.5,T+PH);x.stroke();x.fillText((t<0?'−':'')+mmss(Math.abs(t)),Math.max(X,L+10),H-3)}}
  if(zeroLine){x.strokeStyle=css('--mu');x.setLineDash([3,4]);x.beginPath();x.moveTo(L,py(0));x.lineTo(L+PW,py(0));x.stroke();x.setLineDash([])}
- x.strokeStyle=color;x.lineWidth=2;x.lineJoin='round';x.beginPath();let on=false;
- for(const p of pts){const X=px(p.t),Y=py(p.v);on?x.lineTo(X,Y):x.moveTo(X,Y);on=true}x.stroke();
- if(pts.length){const p=pts[pts.length-1];x.fillStyle=color;x.beginPath();x.arc(px(p.t),py(p.v),4,0,7);x.fill()}
+ for(const se of series){
+  x.strokeStyle=se.color;x.lineWidth=2;x.lineJoin='round';x.setLineDash(se.dash||[]);x.beginPath();let on=false;
+  for(const p of se.pts){const X=px(p.t),Y=py(p.v);on?x.lineTo(X,Y):x.moveTo(X,Y);on=true}x.stroke();x.setLineDash([]);
+  if(se.dot&&se.pts.length){const p=se.pts[se.pts.length-1];x.fillStyle=se.color;x.beginPath();x.arc(px(p.t),py(p.v),4,0,7);x.fill()}}
 }
 function frame(){
  if(dirty||brewing||DEMO){dirty=false;readouts();
   const b=shown(),cw=$('cw'),cf=$('cf');
-  if(b){const last=b.rows.length?b.rows[b.rows.length-1][0]:0,x1=Math.max(60,Math.ceil((brewing?now()-t0:b.dur||last)/30)*30);
+  if(cmp){drawCompare(cw,cf)}
+  else if(b){const last=b.rows.length?b.rows[b.rows.length-1][0]:0,x1=Math.max(60,Math.ceil((brewing?now()-t0:b.dur||last)/30)*30);
    drawChart(cw,b.rows.filter(r=>r[1]!=null).map(r=>({t:r[0],v:r[1]})),css('--w'),false,5,0,x1,false);
    drawChart(cf,b.rows.filter(r=>r[2]!=null).map(r=>({t:r[0],v:r[2]})),css('--ac'),true,4,0,x1,false)}
   else{const win=+$('win').value,tn=now();
@@ -335,7 +434,7 @@ async function openCsvFile(file){
  viewBrew={id:'up'+Date.now().toString(36),start:info.start||file.lastModified||Date.now(),label:info.label!=null?info.label:file.name.replace(/\.csv$/i,'').slice(0,24),
   sm:info.sm||smN,dur:rows[rows.length-1][0],interrupted:false,uploaded:true,saved:false,fileName:file.name,rows,end:cutNote?{reason:'cup-removed',t:cutNote.endT,finalG:cutNote.finalG}:{reason:'imported',t:rows[rows.length-1][0],finalG:lastG?lastG[1]:null}};
  if(cutNote)viewBrew.dur=cutNote.endT;
- dirty=true;scrollTo({top:0,behavior:'smooth'});
+ dirty=true;closeDrawers();scrollTo({top:0,behavior:'smooth'});
  if(res.bad)showNotice(`${res.bad} line(s) of the file could not be read and were skipped.`);
 }
 $('openfile').onclick=()=>{$('file').value='';$('file').click()};

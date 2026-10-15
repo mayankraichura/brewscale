@@ -6,19 +6,25 @@ browser. No server, no account, no tracking: everything stays on your device unt
 It was made for a DIY scale (ESP32-C3 + HX711 load cell amp) used for pour-over coffee, but any BLE device that sends
 the 7-byte packet below will work.
 
+## Layout
+- **Tablet landscape / desktop (width 900 px or more):** a dashboard that fits one screen without scrolling. Left: weight and flow, the timer and the big Start brewing / STOP button. Right: one tall card with the weight and flow charts (the compare table appears under them). The *Settings* panel slides in from the left and *Saved brews* from the right.
+- **Phone / portrait tablet:** one column, with settings and saved brews at the bottom.
+
 ## How it works
 1. **Connect** to the scale (Chrome, or Bluefy on iPad).
 2. Press **Start brewing**. The page zeroes the weight (switch off with *Zero at start*), clears the charts, sets t0 and starts the timer.
 3. The charts show weight and flow rate against brew time. The big red **STOP** button ends the brew (a stop within 1 s of the start is ignored, so a double tap cannot end it).
 4. **Espresso / no 3-way valve:** if you lift the cup before the draw is over, the brew ends by itself (option *End brew when the cup is removed*). It triggers when the raw weight falls by 20 g or more (adjustable) within 2 s. The brew is marked complete where the last stable reading ended, the rows after it are dropped, and the weight at that moment is the yield. Small touches of the cup do not trigger it. Put the cup back later: it does not matter, the brew is finished.
 5. **Open CSV…** (or drop a file on the page) shows a CSV that this page exported, as a finished brew, even on another device. It is not saved unless you press *Save in browser*. Files that still contain the cup lift are cut at the cup removal, with the same rule as above.
-6. The brew is saved in the browser and appears under *Saved brews*. From there you can **View** it again, download or copy its **CSV**, or delete it.
+6. **Compare:** tick 2 to 4 saved brews in the list and press *Compare*. Weight and flow of all of them are drawn on the same charts (different colours and line styles), with a table of first drip, completion time, yield, average flow and peak flow. *Time zero at* switches between the brew start and the first drip (useful to line up espresso shots). Flow is shown as recorded, so brews with different smoothing look smoother or rougher.
+7. The brew is saved in the browser and appears under *Saved brews*. From there you can **View** it again, download or copy its **CSV**, or delete it.
 
 ## Features
 - Finished brews show a summary: completion time, yield, first drip and average flow
 - Timer, live weight and flow readouts, and two charts (live last 30 s to 5 min while idle, the whole brew during and after a brew)
 - Smoothing: moving average over 1 (off), 3, 5 or 10 samples, with a live noise readout
 - "Zero now" button: it only changes what the page shows and logs, the scale is never written to
+- Compare 2 to 4 saved brews on one chart, with a metrics table
 - Open a downloaded CSV again (button or drag and drop) and view it; optionally save it in the browser
 - Saved brews survive reloads and closed tabs (last 20, in the browser's local storage)
 - If the page is reloaded or crashes during a brew, the part that was recorded is kept as an *interrupted* brew

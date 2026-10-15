@@ -124,4 +124,12 @@ assert.deepStrictEqual([fn.label, fn.sm, new Date(fn.start).getFullYear(), new D
 fn = WL.parseFileName('weightlog-raw-20261013-092553.csv'); assert.deepStrictEqual([fn.label, fn.sm], ['', 1]);
 fn = WL.parseFileName('weightlog-ma3-20261013-131225.csv'); assert.deepStrictEqual([fn.label, fn.sm], ['', 3]);
 fn = WL.parseFileName('my brew.csv'); assert.deepStrictEqual([fn.label, fn.sm, fn.start], [null, null, null]);
+// 10. comparison numbers
+const espresso = Array.from({ length: 300 }, (_, i) => { const t = i / 10, g = Math.max(0, t - 3) * 1.5; return [t, +g.toFixed(2), t < 4.5 ? null : 1.5, 0, i, 3]; });
+let mt = WL.brewMetrics({ rows: espresso, dur: 29.9 });
+assert.strictEqual(mt.dur, 29.9); assert.ok(mt.firstDrip > 3.6 && mt.firstDrip < 3.8, 'first drip ' + mt.firstDrip);
+assert.ok(Math.abs(mt.yieldG - 40.35) < 0.01 && Math.abs(mt.avgFlow - 40.35 / (29.9 - mt.firstDrip)) < 1e-9 && mt.peakFlow === 1.5);
+mt = WL.brewMetrics({ rows: espresso, dur: 29.9, end: { finalG: 36.5 } }); assert.strictEqual(mt.yieldG, 36.5, 'the stored yield wins');
+mt = WL.brewMetrics({ rows: espresso.map(r => [r[0], 0, null, 0, 0, 0]), dur: 10 }); assert.strictEqual(mt.firstDrip, null); assert.strictEqual(mt.avgFlow, null); assert.strictEqual(mt.peakFlow, null);
+assert.strictEqual(WL.firstDripTime([]), null);
 console.log('all tests passed');
