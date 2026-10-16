@@ -1,400 +1,734 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
 <title>Weight Log</title>
 <style>
-:root{--bg:#12100E;--card:#1C1916;--line:#2A2622;--tx:#F4EFE8;--mu:#9A9085;--ac:#E8955A;--w:#6FB1E0;--ok:#7BC47F;--bad:#E2735C;--stop:#D93B30}
-@media (prefers-color-scheme:light){:root{--bg:#F6F1EA;--card:#FFFFFF;--line:#E4DCD0;--tx:#241F1A;--mu:#6F665B;--ac:#C8672B;--w:#2F7DB5;--ok:#2F8F4A;--bad:#B8432C;--stop:#C62F25}}
+/* Weight Log: styles ported from weightlog/design (the design mockup). */
+
+/* ---------- 1. Colour tokens (dark default, light through prefers-color-scheme) ---------- */
+:root{
+ color-scheme:dark;
+ --bg:#12100E;      /* page */
+ --card:#1C1916;    /* card */
+ --raise:#27231E;   /* buttons, inputs, raised parts */
+ --line:#3A342D;    /* borders, grid */
+ --tx:#F4EFE8;      /* text */
+ --mu:#B9AFA3;      /* muted text (8:1 on card) */
+ --ac:#E8955A;      /* accent fill: Start, primary buttons */
+ --act:#E8955A;     /* accent as text / border */
+ --on-ac:#1E1108;   /* text on accent fill */
+ --acs:#34231A;     /* accent soft fill (Tare) */
+ --w:#6FB1E0;       /* weight line */
+ --f:#E8955A;       /* flow line */
+ --stop:#D93B30;    /* STOP */
+ --ok:#5CC17D; --warn:#E9B64C; --bad:#F2796A;
+ --warns:#2F2610; --bads:#38191A;
+ --c1:#56B4E9; --c2:#F0A32B; --c3:#4FCBA3; --c4:#E58FBF;   /* compare slots A-D (Okabe-Ito based) */
+ --grid:rgba(244,239,232,.10);
+ --shadow:0 14px 44px rgba(0,0,0,.55);
+ --scrimc:rgba(8,6,5,.62);
+}
+@media (prefers-color-scheme:light){
+ :root:not([data-theme=dark]){
+  color-scheme:light;
+  --bg:#F4EEE6; --card:#FFFFFF; --raise:#F3ECE2; --line:#DDD2C3; --tx:#231E19; --mu:#5B5248;
+  --ac:#E8955A; --act:#A64E12; --on-ac:#1E1108; --acs:#FBE9DC;
+  --w:#1F6FAE; --f:#C2611F; --stop:#C62F25; --ok:#23783D; --warn:#8F5C00; --bad:#B8321F;
+  --warns:#FBF1D9; --bads:#FBE3DE;
+  --c1:#0072B2; --c2:#B86A00; --c3:#00795A; --c4:#A8467F;
+  --grid:rgba(35,30,25,.12); --shadow:0 14px 44px rgba(60,40,20,.25); --scrimc:rgba(40,30,20,.45);
+ }
+}
+:root[data-theme=light]{
+ color-scheme:light;
+ --bg:#F4EEE6; --card:#FFFFFF; --raise:#F3ECE2; --line:#DDD2C3; --tx:#231E19; --mu:#5B5248;
+ --ac:#E8955A; --act:#A64E12; --on-ac:#1E1108; --acs:#FBE9DC;
+ --w:#1F6FAE; --f:#C2611F; --stop:#C62F25; --ok:#23783D; --warn:#8F5C00; --bad:#B8321F;
+ --warns:#FBF1D9; --bads:#FBE3DE;
+ --c1:#0072B2; --c2:#B86A00; --c3:#00795A; --c4:#A8467F;
+ --grid:rgba(35,30,25,.12); --shadow:0 14px 44px rgba(60,40,20,.25); --scrimc:rgba(40,30,20,.45);
+}
+
+/* ---------- 2. Base ---------- */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
-body{background:radial-gradient(1100px 520px at 88% -8%,rgba(232,149,90,.13),transparent 62%),var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,sans-serif;min-height:100vh}
-main{max-width:1100px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 28px 16px;display:flex;flex-direction:column;gap:14px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.spread{justify-content:space-between}
-.card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0)),var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
-h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
-.lab{font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.08em}
-.num{font-variant-numeric:tabular-nums;font-weight:600;line-height:1}
-.big{font-size:clamp(44px,10vw,88px)}
-.timer{font-size:clamp(56px,14vw,120px)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-button,select,input[type=text],input[type=number]{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;min-height:44px}
-button{cursor:pointer}
-button.p{background:var(--ac);border-color:var(--ac);color:#12100E;font-weight:650}
-button:disabled{opacity:.45;cursor:default}
-#main{width:100%;min-height:92px;font-size:30px;font-weight:700;border-radius:20px;letter-spacing:.3px}
-#main.go{background:var(--ac);border-color:var(--ac);color:#12100E}
-#main.stop{background:var(--stop);border-color:var(--stop);color:#fff}
-.pill{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:13px}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--mu)}
-.dot.on{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.rec{background:var(--stop);animation:b 1s infinite}
-@keyframes b{50%{opacity:.25}}
-.cwrap{position:relative}.cwrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-#wwrap{height:230px}#fwrap{height:170px}
-.note{font-size:13px;color:var(--mu)}.neg{color:var(--bad)}
-#hist .it{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
-#hist .it:first-child{border-top:0}#hist .it .t{flex:1;min-width:180px}
-#hist button{min-height:38px;padding:0 12px}
-.warn{border-color:var(--ac)}
-.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;width:min(720px,92vw);max-height:86vh;overflow:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
-#top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
-#top .grp{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-#menu,#openSaved,.dclose{display:none}
-#scrim{display:none}
-#colL,#colR{display:contents}
-#brewcard{order:1}#readcard{order:2}#chartcard{order:3}#cmpcard{order:4}
-.bgrid{display:grid;grid-template-columns:1fr;gap:12px}
-@media (max-width:560px){.grid{grid-template-columns:1fr}}
+body{background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+button,select,input,textarea{font:inherit;color:inherit}
+button{min-height:48px;padding:0 18px;border-radius:14px;border:1px solid var(--line);background:var(--raise);font-weight:600;font-size:16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;white-space:nowrap}
+button:active:not(:disabled){transform:scale(.98)}
+button.p{background:var(--ac);color:var(--on-ac);border-color:transparent}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button svg{width:22px;height:22px;flex:none}
+select{min-height:48px;padding:0 12px;border-radius:14px;border:1px solid var(--line);background:var(--raise);font-size:16px}
+:focus-visible{outline:3px solid var(--w);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:-.01em;line-height:1}
+.lab{font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);font-weight:700}
+.note{font-size:15px;color:var(--mu)}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
 
-/* Tablet landscape / desktop: a dashboard that fits one screen */
+/* ---------- 3. App shell ---------- */
+#app{position:relative;min-height:100vh;min-height:100dvh}
+
+/* top bar - phone first */
+#top{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"menu title saved" "stat stat conn" "rate rate rate";gap:8px 10px;align-items:center;padding:10px 12px}
+#menu{grid-area:menu;padding:0 14px}
+h1{grid-area:title;white-space:nowrap;margin:0;font-size:20px;line-height:1.1;font-weight:700;display:flex;align-items:center;gap:8px;min-width:0}
+#mode{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--act);border:1px solid var(--act);border-radius:999px;padding:3px 9px}
+#mode:empty{display:none}
+.pill{height:44px;display:flex;align-items:center;gap:9px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:15px;white-space:nowrap}
+.pill.stat{grid-area:stat;min-width:0}
+.pill.rate{grid-area:rate;height:28px;border:0;background:none;padding:0 4px;color:var(--mu)}
+.dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--mu);flex:none}
+.dot.on{background:var(--ok);border-color:var(--ok)}
+.dot.bad{background:var(--bad);border-color:var(--bad)}
+.dot.rec{background:var(--bad);border-color:var(--bad);animation:blink 1.1s infinite}
+@keyframes blink{50%{opacity:.35}}
+#openSaved{grid-area:saved}
+#connect{grid-area:conn}
+#openSaved .long{display:none}
+#connect .long{display:none}
+
+/* banner (persistent errors / warnings) */
+#banner{flex:none;padding:12px 16px;border-radius:16px;border:1px solid;display:flex;align-items:center;gap:12px;font-size:16px}
+#banner.warn{background:var(--warns);border-color:var(--warn);color:var(--tx)}
+#banner.bad{background:var(--bads);border-color:var(--bad);color:var(--tx)}
+#banner svg{width:26px;height:26px;flex:none}
+#banner.warn svg{color:var(--warn)}#banner.bad svg{color:var(--bad)}
+#bannermsg{flex:1}
+
+/* layout */
+#dash{display:flex;flex-direction:column;gap:12px;padding:0 12px 16px}
+#colL,#colR{display:flex;flex-direction:column;gap:12px;min-width:0}
+
+/* reading card: weight + tare, flow */
+#readcard{display:grid;grid-template-columns:1.5fr 1fr;gap:12px}
+#readcard .card{display:flex;flex-direction:column;gap:8px;padding:14px 16px}
+.big{font-size:64px}.unit{font-size:20px;color:var(--mu);font-weight:600;margin-left:6px}
+#fv{font-size:44px}
+.meter{height:14px;border-radius:7px;background:var(--raise);overflow:hidden;margin-top:4px}
+.meter i{display:block;height:100%;width:0;background:var(--f);border-radius:7px;transition:width .1s}
+.readnote{font-size:13px;color:var(--mu)}
+.wlab{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:0 10px}
+#zero{height:58px;padding:0 12px;border:2px solid var(--act);background:var(--acs);color:var(--act);font-size:20px;font-weight:800;gap:10px;border-radius:16px;margin-top:auto;justify-content:flex-start}
+#zero svg{width:28px;height:28px}
+#zero .zt{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;text-align:left}
+#zero .zs{font-size:13px;font-weight:600;color:var(--mu)}
+#zero:disabled{border-style:dashed;border-color:var(--line);background:transparent;color:var(--mu);opacity:1}
+#zero.done{border-color:var(--ok);color:var(--ok);background:transparent}
+
+/* brew card: timer, tile */
+#brewcard{display:flex;flex-direction:column;gap:12px}
+.bleft{display:contents}
+.tbox{order:1}
+.bright{order:2}
+#main{order:2}
+#bstat{order:3}#cuprule{order:4}#label{order:5}
+.tbox .lab{margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.timer{font-size:64px}
+.timer.run{color:var(--tx)}
+#main{width:100%;height:160px;border-radius:24px;border:0;flex-direction:column;gap:6px;white-space:normal;text-align:center;line-height:1.1;padding:0 12px}
+#main svg{width:48px;height:48px}
+#main .tl{font-size:34px;font-weight:800}
+#main .ts{font-size:14px;font-weight:600;opacity:.8}
+#main.go{background:var(--ac);color:var(--on-ac)}
+#main.stop{background:var(--stop);color:#fff;animation:ring 1.6s infinite}
+#main.stop .tl{font-size:52px;letter-spacing:.04em}
+@keyframes ring{0%,100%{box-shadow:inset 0 0 0 0 rgba(255,255,255,0)}50%{box-shadow:inset 0 0 0 8px rgba(255,255,255,.22)}}
+#main:disabled{background:var(--raise);color:var(--mu);border:2px dashed var(--line);opacity:1}
+#bstat{font-size:16px;line-height:1.45;margin:0}
+#cuprule{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--mu);padding:8px 12px;border-radius:12px;background:var(--raise);width:fit-content;max-width:100%}
+#cuprule svg{width:18px;height:18px;flex:none;color:var(--act)}
+#cuprule.off svg{color:var(--mu)}
+#label{height:52px;width:100%;border-radius:14px;border:1px solid var(--line);background:var(--raise);padding:0 14px;font-size:17px}
+#label::placeholder{color:var(--mu)}
+
+/* chart card */
+#chartcard{display:flex;flex-direction:column;min-width:0}
+.chead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin-bottom:10px}
+#ctitle{font-size:18px;font-weight:700}
+#winl{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--mu)}
+#legend{display:flex;gap:8px 14px;flex-wrap:wrap;font-size:15px;margin:-2px 0 10px}
+#legend span{display:inline-flex;align-items:center;gap:8px}
+.charts{display:flex;flex-direction:column;gap:12px}
+.cbox{display:flex;flex-direction:column;min-width:0}
+.cbox .lab{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.cwrap{position:relative;height:200px;flex:none}
+#fwrap{height:160px}
+canvas{display:block;width:100%;height:100%}
+.empty{position:absolute;inset:0 0 26px 40px;display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;color:var(--mu);font-size:16px;pointer-events:none}
+.empty b{display:block;color:var(--tx);font-size:18px;margin-bottom:4px}
+#actions{display:flex;align-items:center;justify-content:space-between;gap:10px 12px;flex-wrap:wrap;margin-top:12px}
+#rs{font-size:15px;color:var(--mu)}
+
+/* compare */
+#cmpcard{padding:14px 16px}
+#cmpcard .chead{margin-bottom:8px}
+.tw{overflow-x:auto}
+#cmptab{border-collapse:collapse;width:100%;font-size:16px;font-variant-numeric:tabular-nums}
+#cmptab th{font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--mu);font-weight:700;text-align:right;padding:6px 10px;white-space:nowrap}
+#cmptab th:first-child,#cmptab td:first-child{text-align:left}
+#cmptab td{padding:6px 10px;text-align:right;border-top:1px solid var(--line);height:44px;white-space:nowrap}
+#cmptab td:first-child{position:sticky;left:0;background:var(--card);font-weight:600}
+#cmptab .bn{display:flex;align-items:center;gap:10px}
+#cmptab .bl{width:22px;height:22px;border-radius:7px;border:2px solid var(--mu);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:none}
+.cmpnote{font-size:14px;color:var(--mu);margin-top:8px}
+
+/* hide parts of the left column in compare mode */
+#dash.cmp #colL{display:none}
+#dash.cmp #actions{display:none}
+#dash.cmp .cbox .lab svg{display:none}
+#dash.cmp #winl{display:none}
+#dash:not(.cmp) #legend{display:none}
+
+/* drawers + modals + scrim */
+.drawer{position:fixed;top:0;bottom:0;z-index:30;width:100%;max-width:100%;border-radius:0;padding:0;overflow:auto;visibility:hidden;transition:transform .22s,visibility 0s .22s;box-shadow:var(--shadow);display:flex;flex-direction:column}
+#settings{left:0;transform:translateX(-105%);border-left:0}
+#saved{right:0;transform:translateX(105%);border-right:0}
+#settings.open,#saved.open{transform:none;visibility:visible;transition:transform .22s}
+.dhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);z-index:2}
+.dhead h2{margin:0;font-size:20px}
+.dclose{width:48px;padding:0}
+.dbody{padding:12px 16px 24px;display:flex;flex-direction:column;gap:6px}
+#scrim{position:fixed;inset:0;z-index:25;background:var(--scrimc);display:none}
+#scrim.show{display:block}
+.modal{position:fixed;z-index:40;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;box-shadow:var(--shadow);padding:20px}
+.modal.wide{width:min(640px,calc(100% - 24px))}
+.modal h2{margin:0;font-size:20px}
+.mhead{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.mico{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--raise);flex:none}
+.mico svg{width:22px;height:22px}
+.modal.tone-warn .mico{background:var(--warns);color:var(--warn)}
+.modal.tone-bad .mico{background:var(--bads);color:var(--bad)}
+.modal.tone-ok .mico{color:var(--ok)}
+.modal p{margin:0 0 16px;font-size:17px}
+.mact{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.mact button{min-width:120px;min-height:52px}
+#csvtxt{width:100%;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px;margin:8px 0 14px;resize:none;height:200px}
+
+/* settings content */
+.sec{margin-top:10px}
+.sec>.lab{margin:6px 0 4px}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:60px;padding:8px 0;border-bottom:1px solid var(--line)}
+.setrow:last-child{border-bottom:0}
+.setrow .st{display:flex;flex-direction:column;gap:2px}
+.setrow .st b{font-size:17px;font-weight:600}
+.setrow .st span{font-size:14px;color:var(--mu)}
+input.switch{appearance:none;-webkit-appearance:none;width:60px;height:34px;border-radius:999px;background:var(--raise);border:2px solid var(--line);position:relative;flex:none;cursor:pointer;margin:0}
+input.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--mu);transition:left .15s}
+input.switch:checked{background:var(--ac);border-color:var(--ac)}
+input.switch:checked::after{left:29px;background:var(--on-ac)}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper button{width:52px;padding:0;font-size:24px}
+#cupdrop{width:84px;height:52px;border-radius:14px;border:1px solid var(--line);background:var(--raise);text-align:center;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+#hint,#aboutnote{font-size:15px;color:var(--mu);padding:10px 12px;border-radius:12px;background:var(--raise);margin-top:8px}
+
+/* saved brews */
+.dtools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#hist{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.hrow{border:1px solid var(--line);border-radius:16px;padding:12px;background:var(--bg);display:flex;flex-direction:column;gap:10px}
+.hrow.sel{border-color:var(--act)}
+.htop{display:flex;align-items:center;gap:10px}
+.chkw{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;margin:-6px -4px -6px -6px}
+input.chk{appearance:none;-webkit-appearance:none;width:30px;height:30px;border-radius:9px;border:2px solid var(--mu);background:var(--raise);margin:0;position:relative;cursor:pointer}
+input.chk:checked{background:var(--ac);border-color:var(--ac)}
+input.chk:checked::after{content:"";position:absolute;left:9px;top:3px;width:8px;height:15px;border:solid var(--on-ac);border-width:0 3px 3px 0;transform:rotate(45deg)}
+input.chk:disabled{opacity:.35;cursor:not-allowed}
+.hinfo{flex:1;min-width:0}
+.ht{font-weight:700;font-size:16px}
+.hm{font-size:15px;color:var(--mu)}
+.hbtns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.hbtns button{padding:0 6px;min-height:48px}
+.hint2{font-size:14px;color:var(--mu);margin:2px 0 4px}
+.emptybox{border:2px dashed var(--line);border-radius:18px;padding:28px 16px;text-align:center;color:var(--mu);display:flex;flex-direction:column;gap:12px;align-items:center}
+.emptybox b{color:var(--tx);font-size:18px}
+
+/* narrow + middle: the two columns dissolve so every block can be ordered; the banner goes to the top */
+@media (max-width:899px){#colL,#colR{display:contents}#banner{order:-1}}
+
+/* ---------- 4. Middle width (portrait tablet) ---------- */
+@media (min-width:560px){
+ #top{grid-template-columns:auto auto 1fr auto auto;grid-template-areas:"menu title . saved conn" "stat rate . . .";padding:12px 16px}
+ .pill.rate{height:44px;border:1px solid var(--line);background:var(--card);padding:0 16px;color:var(--tx)}
+ #connect .long{display:inline}#connect .short{display:none}
+ #openSaved .long{display:inline}#openSaved .short{display:none}
+ #dash{padding:0 16px 20px;gap:16px}
+ .big{font-size:80px}#fv{font-size:56px}
+ .unit{font-size:24px}
+ #brewcard{display:grid;grid-template-columns:minmax(0,1fr) 260px;column-gap:20px;row-gap:0;align-items:stretch;padding:20px}
+ .bleft{display:flex;flex-direction:column;gap:12px;min-width:0}
+ .tbox,#bstat,#cuprule,#label{order:0}
+ .bright{order:0;display:block;height:300px}
+ #main{height:100%}
+ #main .tl{font-size:36px}
+ .timer{font-size:72px}
+ #label{margin-top:auto}
+ .cwrap{height:260px}#fwrap{height:190px}
+ .drawer{width:460px}
+ #saved{width:520px}
+ button{min-height:52px}
+ .hbtns button{min-height:52px}
+}
+
+/* ---------- 5. Wide (tablet landscape, desktop): one screen, no page scroll ---------- */
 @media (min-width:900px){
  html,body{height:100%;overflow:hidden}
- main{max-width:none;height:100dvh;padding:12px 16px 14px;gap:12px}
- #menu,#openSaved{display:inline-flex;align-items:center}
- #dash{flex:1;min-height:0;display:grid;grid-template-columns:minmax(380px,38%) 1fr;gap:14px}
- #colL,#colR{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
- #brewcard,#readcard,#chartcard,#cmpcard{order:0}
- #readcard{flex:none}
- #brewcard{flex:1 1 auto;display:flex;flex-direction:column;gap:10px}
- .bgrid{flex:1 1 auto;grid-template-columns:auto 1fr;align-items:stretch}
- .timer{font-size:clamp(48px,5.6vw,96px)}
- .big{font-size:clamp(40px,4.6vw,76px)}
- #main{height:100%;min-height:104px;font-size:26px}
- #chartcard{flex:1 1 auto;display:flex;flex-direction:column;min-height:300px}
- #wwrap{height:auto;flex:3 1 0;min-height:110px}#fwrap{height:auto;flex:2 1 0;min-height:90px}
- #cmpcard{flex:none}
- .drawer{position:fixed;top:0;bottom:0;z-index:30;width:min(520px,92vw);margin:0;border-radius:0;overflow:auto;visibility:hidden;transition:transform .22s,visibility 0s .22s;box-shadow:0 0 40px rgba(0,0,0,.5)}
- #settings{left:0;transform:translateX(-105%);border-left:0}
- #saved{right:0;transform:translateX(105%);border-right:0}
- #settings.open,#saved.open{transform:none;visibility:visible;transition:transform .22s}
- .dclose{display:inline-flex;align-items:center}
- #scrim{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.5)}
- #scrim.show{display:block}
- #aboutnote{display:block}
+ #app{height:100vh;height:100dvh;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+ #top{flex:none;grid-template-columns:auto auto auto auto 1fr auto auto;grid-template-areas:"menu title stat rate . saved conn";gap:10px 12px;padding:10px 12px}
+ #dash{flex:1;min-height:0;display:grid;grid-template-columns:480px minmax(0,1fr);gap:12px;padding:0 12px 12px}
+ #colL,#colR{min-height:0}
+ #brewcard{flex:1;min-height:0;padding:16px;column-gap:16px;grid-template-columns:minmax(0,1fr) 210px}
+ .bright{height:auto}
+ .timer{font-size:72px}
+ .big{font-size:72px}
+ #chartcard{flex:1;min-height:0}
+ .charts{flex:1;min-height:0}
+ .cbox{flex:1 1 0;min-height:0}
+ .cbox.w{flex:3 1 0}.cbox.f{flex:2 1 0}
+ .cwrap,#fwrap{flex:1;min-height:60px;height:auto}
+ /* compare: left column is hidden, charts sit side by side, table under them */
+ #dash.cmp{grid-template-columns:minmax(0,1fr)}
+ #dash.cmp #colR{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:12px}
+ #dash.cmp .charts{flex-direction:row;gap:20px}
+ #dash.cmp .cbox.w,#dash.cmp .cbox.f{flex:1 1 0}
+ .drawer{width:460px}
+ #saved{width:540px}
 }
-</style></head><body>
-<main>
- <header id="top">
-  <div class="grp"><button id="menu" aria-label="Settings" title="Settings">☰ Settings</button><h1>Weight Log <span class="note" id="mode"></span></h1></div>
-  <div class="grp">
-   <div class="pill"><span class="dot" id="cd"></span><span id="cs">Not connected</span></div>
-   <div class="pill"><span id="hz">0.0</span> Hz · lost <span id="lost">0</span></div>
-  </div>
-  <div class="grp"><button id="openSaved">Saved brews</button><button class="p" id="connect">Connect to BrewScale</button></div>
- </header>
+/* phone: smaller */
+@media (max-width:899px){
+ #cmptab th,#cmptab td{padding-left:7px;padding-right:7px}
+}
+@media (max-width:559px){
+ #mode{display:none}   /* the chart title says the same */
+ #top button{padding:0 12px}
+ h1{font-size:19px}
+ .pill.stat{padding:0 14px}
+ .hbtns button{font-size:15px}
+ .modal{padding:16px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
- <div class="card warn modal" id="notice" hidden>
-  <div id="noticemsg"></div>
-  <div class="row" style="margin-top:10px"><button class="p" id="noticeok">OK</button></div>
- </div>
- <div class="card modal" id="csvbox" hidden>
-  <div class="note" id="csvmsg" style="margin-bottom:8px"></div>
-  <textarea id="csvtxt" readonly rows="8" style="width:100%;font:12px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:10px"></textarea>
-  <div class="row" style="margin-top:8px"><button id="csvsel">Select all</button><button id="csvclose">Close</button></div>
- </div>
+
+</style>
+</head>
+<body>
+
+<main id="app">
+ <header id="top">
+  <button id="menu" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Settings</button>
+  <h1>Weight Log <span id="mode"></span></h1>
+  <div class="pill stat"><span class="dot" id="cd"></span><span id="cs">Not connected</span></div>
+  <div class="pill rate"><span><span id="hz">0.0</span> Hz</span><span>lost <span id="lost">0</span></span></div>
+  <button id="openSaved"><span><span class="long">Saved brews</span><span class="short">Saved</span> (<span id="savedn">0</span>)</span></button>
+  <button id="connect" class="p"><span class="long">Connect to BrewScale</span><span class="short">Connect</span></button>
+ </header>
 
  <div id="dash">
   <div id="colL">
-   <section class="grid" id="readcard">
-    <div class="card"><div class="lab">Weight</div><div><span class="num big" id="wv">--</span> <span class="note">g</span></div><div class="note">noise (last 5 s): <span id="nz">--</span> g</div></div>
-    <div class="card"><div class="lab">Flow</div><div><span class="num big" id="fv">--</span> <span class="note">g/s</span></div></div>
+   <section id="readcard" aria-label="Live reading">
+    <div class="card">
+     <div class="wlab"><span class="lab">Weight</span><span class="readnote">noise (last 5 s): <span id="nz">--</span> g</span></div>
+     <div><span class="num big" id="wv">--</span><span class="unit">g</span></div>
+     <button id="zero" disabled title="Zero the weight and clear both graphs. The scale itself is not changed.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8M8.5 8 12 11.5 15.5 8M4 15h16M6 15l1 5h10l1-5"/></svg>
+      <span class="zt"><span class="zl">Zero</span><span class="zs">zero + clear graphs</span></span>
+     </button>
+    </div>
+    <div class="card">
+     <div class="lab">Flow</div>
+     <div><span class="num" id="fv">--</span><span class="unit">g/s</span></div>
+     <div style="margin-top:auto"><div class="readnote" style="display:flex;justify-content:space-between"><span>0</span><span>4 g/s</span></div><div class="meter" aria-hidden="true"><i id="fmeter"></i></div></div>
+    </div>
    </section>
-   <section class="card" id="brewcard">
-    <div class="bgrid">
-     <div><div class="lab" id="tlab">Brew time</div><div class="num timer" id="timer">0:00.0</div></div>
-     <div><button id="main" class="go" disabled>Start brewing</button></div>
+
+   <section class="card" id="brewcard" aria-label="Brew">
+    <div class="bleft">
+     <div class="tbox"><div class="lab"><span id="tlab">Brew time</span><span class="dot rec" id="recdot" hidden></span></div><div class="num timer" id="timer">0:00.0</div></div>
+     <p id="bstat">Connect to the scale, then start.</p>
+     <div id="cuprule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4zM16 10h2a2 2 0 0 1 0 4h-2M8 3v3M12 3v3"/></svg><span id="cuprtxt">Auto-end: cup lifted (drop 20 g)</span></div>
+     <input id="label" type="text" maxlength="24" placeholder="Label (optional)" aria-label="Label for this brew">
     </div>
-    <div>
-     <div class="row spread" style="margin-top:10px"><input id="label" type="text" maxlength="24" placeholder="Label (optional)" aria-label="Label for this brew" style="width:190px"></div>
-     <div class="note" id="bstat" style="margin-top:8px">Connect to the scale, then start.</div>
-    </div>
+    <div class="bright"><button id="main" class="go" disabled><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg><span class="tl">Start brewing</span><span class="ts">connect the scale first</span></button></div>
    </section>
   </div>
+
   <div id="colR">
-   <section class="card" id="chartcard">
-    <div class="row spread" style="margin-bottom:6px"><span class="lab" id="ctitle">Live</span>
-     <span class="row"><button id="live" hidden>Back to live</button>
-     <label class="note" id="winl">Window <select id="win"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></label></span></div>
-    <div class="lab">Weight (g)</div><div class="cwrap" id="wwrap"><canvas id="cw"></canvas></div>
-    <div class="lab" style="margin:10px 0 6px">Flow (g/s)</div><div class="cwrap" id="fwrap"><canvas id="cf"></canvas></div>
-    <div class="row spread" style="margin-top:10px" id="actions">
+   <div id="banner" role="alert" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19z"/><path d="M12 10v5M12 18v.01"/></svg>
+    <div id="bannermsg"></div>
+   </div>
+   <section class="card" id="chartcard" aria-label="Charts">
+    <div class="chead">
+     <span id="ctitle">Live</span>
+     <span class="row">
+      <button id="live" hidden>Back to live</button>
+      <label id="winl">Window <select id="win"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select></label>
+     </span>
+    </div>
+    <div id="legend"></div>
+    <div class="charts">
+     <div class="cbox w"><div class="lab">Weight (g)<svg width="40" height="12" viewBox="0 0 40 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="var(--w)" stroke-width="3" stroke-linecap="round"/><circle cx="34" cy="6" r="4" fill="var(--w)"/></svg></div><div class="cwrap" id="wwrap"><canvas id="cw" aria-label="Weight chart"></canvas><div class="empty" id="wempty" hidden></div></div></div>
+     <div class="cbox f"><div class="lab">Flow (g/s)<svg width="40" height="12" viewBox="0 0 40 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="var(--f)" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 5"/><rect x="30" y="2" width="8" height="8" fill="var(--f)"/></svg></div><div class="cwrap" id="fwrap"><canvas id="cf" aria-label="Flow chart"></canvas><div class="empty" id="fempty" hidden></div></div></div>
+    </div>
+    <div id="actions">
      <div class="row"><button id="dl" disabled>Download CSV</button><button id="cp" disabled>Copy CSV</button><button id="savebrew" class="p" hidden>Save in browser</button></div>
-     <div class="note" id="rs">No brew selected</div>
+     <div id="rs">No brew selected</div>
     </div>
    </section>
    <section class="card" id="cmpcard" hidden>
-    <div class="row spread" style="margin-bottom:6px"><span class="lab">Compare</span>
+    <div class="chead"><span class="lab">Compare</span>
      <span class="row"><label class="note">Time zero at <select id="calign"><option value="start">Brew start</option><option value="drip">First drip</option></select></label><button id="cmpexit">Exit compare</button></span></div>
-    <div style="overflow-x:auto"><table id="cmptab" style="border-collapse:collapse;width:100%;font-size:14px"></table></div>
-    <div class="note" style="margin-top:6px">Flow is shown as recorded: brews with a different smoothing look smoother or rougher. Line styles differ as well as colours.</div>
+    <div class="tw"><table id="cmptab"></table></div>
+    <div class="cmpnote">Flow is shown as recorded. Each brew has its own colour, line style and end marker (A solid, B dashed, C dotted, D dash-dot).</div>
    </section>
   </div>
  </div>
 
+ <!-- Settings (slides in from the left) -->
  <aside class="card drawer" id="settings" aria-label="Settings">
-  <div class="row spread" style="margin-bottom:10px"><span class="lab">Settings</span><button class="dclose" id="sclose" aria-label="Close">✕</button></div>
-  <div class="row" style="flex-direction:column;align-items:flex-start;gap:12px">
-   <label class="note">Smoothing <select id="sm"><option value="1">Off</option><option value="3">3 samples (0.3 s)</option><option value="5">5 samples (0.5 s)</option><option value="10">10 samples (1 s)</option></select></label>
-   <button id="zero" disabled title="Only changes what this page shows and logs; the scale is not touched">Zero now</button>
-   <label class="note"><input type="checkbox" id="zstart" checked> Zero at start</label>
-   <label class="note"><input type="checkbox" id="cupstop" checked> End brew when the cup is removed (drop of <input id="cupdrop" type="number" min="5" max="500" step="5" value="20" style="width:70px;min-height:36px;border-radius:10px;padding:0 6px"> g)</label>
-   <div class="note" id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
-   <div class="note" id="aboutnote">Read-only: this page only listens to the scale and sends it nothing. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
+  <div class="dhead"><h2>Settings</h2><button class="dclose" id="sclose" aria-label="Close settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dbody">
+   <div class="sec"><div class="lab">Reading</div>
+    <div class="setrow"><div class="st"><b>Smoothing</b><span>Averages the last samples on the weight line</span></div>
+     <select id="sm" aria-label="Smoothing"><option value="1">Off</option><option value="3">3 samples (0.3 s)</option><option value="5">5 samples (0.5 s)</option><option value="10">10 samples (1 s)</option></select></div>
+   </div>
+   <div class="sec"><div class="lab">Brew</div>
+    <label class="setrow"><div class="st"><b>Zero at start</b><span>Start brewing zeroes the weight on this page and clears the graphs</span></div><input type="checkbox" class="switch" id="zstart" checked></label>
+    <label class="setrow"><div class="st"><b>End brew when the cup is removed</b><span>The brew stops when the weight drops fast</span></div><input type="checkbox" class="switch" id="cupstop" checked></label>
+    <div class="setrow"><div class="st"><b>Drop needed to end the brew</b><span>5 g to 500 g</span></div>
+     <div class="stepper"><button id="cupminus" aria-label="Less">-</button><input id="cupdrop" type="number" min="5" max="500" step="5" value="20" aria-label="Drop in grams"><button id="cupplus" aria-label="More">+</button><span class="note">g</span></div></div>
+   </div>
+   <div class="sec"><div class="lab">About</div>
+    <div id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
+    <div id="aboutnote">Read-only: this page only listens to the scale and sends it nothing. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
+   </div>
   </div>
  </aside>
+
+ <!-- Saved brews (slides in from the right) -->
  <aside class="card drawer" id="saved" aria-label="Saved brews">
-  <div class="row spread" style="margin-bottom:4px"><span class="lab">Saved brews (kept in this browser)</span><span class="row"><button id="compare" disabled>Compare (0)</button><button id="openfile">Open CSV…</button><button id="clearall" hidden>Delete all</button><button class="dclose" id="hclose" aria-label="Close">✕</button></span></div>
-  <input id="file" type="file" accept=".csv,text/csv,text/plain,.txt" hidden>
-  <div class="note" id="dropnote" style="margin-bottom:4px">Open a CSV from this page (or drop the file on the page) to view it. It is not saved unless you press Save in browser.</div>
-  <div id="hist"><div class="note">No saved brews yet.</div></div>
+  <div class="dhead"><h2>Saved brews</h2><button class="dclose" id="hclose" aria-label="Close saved brews"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dbody">
+   <div class="dtools"><button id="compare" class="p" disabled>Compare (0)</button><button id="openfile">Open CSV...</button><button id="clearall" class="danger" hidden>Delete all</button></div>
+   <input id="file" type="file" accept=".csv,text/csv,text/plain,.txt" hidden>
+   <div class="hint2" id="dropnote">Kept in this browser only. Tick 2 to 4 brews to compare them. Open a CSV (or drop the file on the page) to view it; it is not saved unless you press Save in browser.</div>
+   <div id="hist"></div>
+  </div>
  </aside>
  <div id="scrim"></div>
+
+ <!-- Message pop-up -->
+ <div class="card modal" id="notice" role="alertdialog" aria-modal="true" aria-labelledby="noticetitle" hidden>
+  <div class="mhead"><span class="mico" id="noticeico"></span><h2 id="noticetitle">Message</h2></div>
+  <p id="noticemsg"></p>
+  <div class="mact"><button id="noticecancel" hidden>Cancel</button><button class="p" id="noticeok">OK</button></div>
+ </div>
+ <!-- CSV text pop-up -->
+ <div class="card modal wide" id="csvbox" role="dialog" aria-modal="true" aria-labelledby="csvtitle" hidden>
+  <div class="mhead"><h2 id="csvtitle">CSV text</h2></div>
+  <div class="note" id="csvmsg"></div>
+  <textarea id="csvtxt" readonly></textarea>
+  <div class="mact"><button id="csvsel">Select all</button><button class="p" id="csvclose">Close</button></div>
+ </div>
 </main>
+
 <script src="core.js"></script>
 <script>
+const ZERO_LABEL='Zero',ZERO_SUB='zero + clear graphs',START_SUB='zero, clear graphs, start timer';
+(()=>{
+'use strict';
 const $=id=>document.getElementById(id);
 const DEMO=new URLSearchParams(location.search).has('demo');
-const flowCalc=new WL.FlowCalc(),seqT=new WL.SeqTracker(),rate=new WL.RateMeter(5);
-let store;try{store=new WL.BrewStore(localStorage)}catch(e){store=new WL.BrewStore({getItem(){throw 0},setItem(){throw 0},removeItem(){throw 0}})}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtT=WL.fmtTimer,fmtDur=s=>WL.fmtTimer(s).replace(/\.\d$/,'');
+const fmtDS=ms=>new Date(ms).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+
+/* ---------- storage and settings ---------- */
+let storageOk=true,store;
+try{localStorage.setItem('wl.t','1');localStorage.removeItem('wl.t');store=new WL.BrewStore(localStorage)}
+catch(e){storageOk=false;store=new WL.BrewStore({getItem(){throw 0},setItem(){throw 0},removeItem(){throw 0}})}
 const pref=(k,d)=>{try{const v=localStorage.getItem('wl.'+k);return v==null?d:v}catch(e){return d}};
 const setPref=(k,v)=>{try{localStorage.setItem('wl.'+k,String(v))}catch(e){}};
+
+/* ---------- state ---------- */
+const flowCalc=new WL.FlowCalc(),seqT=new WL.SeqTracker(),rate=new WL.RateMeter(5);
 let smN=+pref('sm',3)||3,ma=new WL.MovingAvg(smN);
-let buf=[];                              // rolling live samples {t,g,f}
-let brewing=false,brew=null,t0=0,startedAt=0,viewBrew=null;   // brew = the running brew; viewBrew = a finished brew shown in the charts
-let offset=0,lastRaw=null,connected=false,dirty=false;
 const cup=new WL.CupRemoval(+pref('cupdrop',20)||20,2);
+let buf=[];                              // rolling live samples {t,g,f} (t = seconds since the page loaded)
+let brewing=false,brew=null,t0=0,viewBrew=null,cmp=null,selected=[];   // brew = running brew, viewBrew = a finished one shown, cmp = {brews,align}
+let offset=0,lastRaw=null,connected=false,lostLink=false,devName='BrewScale',cleared=false,zeroUntil=0;
+const btOk=!!navigator.bluetooth||DEMO;
+let dirty=true,lastR=0,lastSave=0,debounceUntil=0,banner=null;
 const T0=performance.now()/1000,now=()=>performance.now()/1000-T0;
 
-// ---- one sample arrives (from Bluetooth or the demo) ----
+/* ---------- one sample arrives (Bluetooth or demo) ---------- */
 function onSample(p){
  const t=now();rate.feed(t);seqT.feed(p.seq);
  const raw=p.g,g=ma.push(raw==null?null:raw-offset),f=flowCalc.push(t,g);
- lastRaw=raw;buf.push({t,g,f});if(buf.length>7000)buf.splice(0,buf.length-6000);
-if(brewing&&$('cupstop').checked){const hit=cup.push(t-t0,raw,t-t0>=2);if(hit){endBrew('cup-removed',hit);return}}   // unsmoothed weight: exact time
+ lastRaw=raw;buf.push({t,g,f});if(buf.length>7000)buf.splice(0,buf.length-6000);cleared=false;
+ if(brewing&&$('cupstop').checked){const hit=cup.push(t-t0,raw,t-t0>=2);if(hit){endBrew('cup-removed',hit);return}}   // unsmoothed weight: exact time
  if(brewing)brew.rows.push([+(t-t0).toFixed(2),g==null?null:+g.toFixed(2),f==null?null:+f.toFixed(2),raw==null?null:+raw.toFixed(2),p.seq,p.flags]);
  dirty=true;
 }
 
-// ---- brewing: start / stop ----
+/* ---------- brewing ---------- */
+function zeroNow(){offset=lastRaw;ma.reset();flowCalc.reset();buf=[];cleared=true}
 function startBrewing(){
  if(brewing)return;
- if($('zstart').checked&&lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.reset()}
- viewBrew=null;cmp=null;buf=[];          // clear the charts: the brew starts at t0
- t0=now();startedAt=Date.now();cup.reset();
+ if($('zstart').checked&&lastRaw!=null)zeroNow();
+ viewBrew=null;cmp=null;buf=[];cup.reset();
+ t0=now();const startedAt=Date.now();
  brew={id:startedAt.toString(36),start:startedAt,label:$('label').value.trim(),sm:smN,dur:0,interrupted:false,rows:[]};
- brewing=true;store.saveActive(brew);lastSave=Date.now();dirty=true;
+ brewing=true;store.saveActive(brew);lastSave=Date.now();debounceUntil=Date.now()+900;dirty=true;
 }
-// A brew ends manually (STOP) or when the cup is removed. For a removal the rows after the last stable reading are dropped.
 function endBrew(reason,hit){
  if(!brewing)return;
  let tEnd=+(now()-t0).toFixed(2),finalG;
  if(reason==='cup-removed'){tEnd=+hit.endT.toFixed(2);brew.rows=brew.rows.filter(r=>r[0]<=tEnd);finalG=+(hit.finalRaw-offset).toFixed(2)}
  else{const last=[...brew.rows].reverse().find(r=>r[1]!=null);finalG=last?last[1]:null}
- if(brew.rows.length<5){brewing=false;brew=null;store.clearActive();dirty=true;showNotice('No data was recorded (is the scale connected and sending?): nothing was saved.');return}
+ if(brew.rows.length<5){brewing=false;brew=null;store.clearActive();dirty=true;notice({tone:'warn',title:'No data recorded',msg:'No weight reached the page during this brew (is the scale connected and sending?). Nothing was saved.'});return}
  brewing=false;brew.dur=tEnd;brew.end={reason,t:tEnd,finalG};brew.label=$('label').value.trim()||brew.label;
- const ok=store.save(brew);store.clearActive();viewBrew=brew;brew=null;renderHistory();dirty=true;
- if(!ok)showNotice('The browser storage is full or blocked: this brew was NOT saved. Download or copy the CSV now.');
+ const ok=store.save(brew);store.clearActive();viewBrew=brew;brew=null;renderHist();dirty=true;
+ if(!ok)notice({tone:'warn',title:'Could not save the brew',msg:'The browser storage is full or blocked, so this brew was not saved. Press Download CSV to keep it.'});
 }
 function stopBrewing(){if(!brewing||now()-t0<1)return;endBrew('manual')}   // a stop within 1 s of the start is ignored (double tap)
-// "Done at 0:28.7 (cup removed) · yield 37.4 g · first drip 0:03.6 · average flow 1.5 g/s"
-function summary(b){
- const e=b.end,fd=b.rows.find(r=>r[1]!=null&&r[1]>=1);
- let txt='Done at '+fmtDur1(b.dur)+(e&&e.reason==='cup-removed'?' (cup removed)':e&&e.reason==='manual'?' (stopped)':e&&e.reason==='imported'?' (uploaded file)':b.interrupted?' (interrupted)':'');
- if(e&&e.finalG!=null)txt+=` · yield ${e.finalG.toFixed(1)} g`;
- if(fd){txt+=` · first drip ${fmtDur1(fd[0])}`;if(e&&e.finalG!=null&&b.dur>fd[0]+1)txt+=` · average flow ${(e.finalG/(b.dur-fd[0])).toFixed(1)} g/s`}
- return txt;
-}
-function fmtDur1(s){return WL.fmtTimer(s)}
-let debounceUntil=0;
-$('main').onclick=()=>{
- if(brewing){stopBrewing();return}
- startBrewing();debounceUntil=Date.now()+900;
-};
-let lastSave=0;
 function autosave(force){if(!brewing||(!force&&Date.now()-lastSave<3000))return;brew.dur=+(now()-t0).toFixed(1);if(store.saveActive(brew))lastSave=Date.now()}
 setInterval(()=>autosave(false),1000);
 addEventListener('pagehide',()=>autosave(true));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)autosave(true)});
 
-// ---- panels (tablet layout): settings from the left, saved brews from the right ----
-function closeDrawers(){for(const d of document.querySelectorAll('.drawer'))d.classList.remove('open');$('scrim').classList.remove('show')}
-function openDrawer(id){closeDrawers();$(id).classList.add('open');$('scrim').classList.add('show')}
-$('menu').onclick=()=>openDrawer('settings');$('openSaved').onclick=()=>openDrawer('saved');
-$('scrim').onclick=closeDrawers;$('sclose').onclick=closeDrawers;$('hclose').onclick=closeDrawers;
-addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawers();$('notice').hidden=true;$('csvbox').hidden=true}});
+/* ---------- summaries ---------- */
+function summary(b){
+ const m=WL.brewMetrics(b),lab=WL.reasonLabel(b.end&&b.end.reason||(b.interrupted?'interrupted':''));
+ let txt='Done at '+fmtT(b.dur)+(lab?' ('+lab+')':'');
+ if(m.yieldG!=null)txt+=' · yield '+m.yieldG.toFixed(1)+' g';
+ if(m.firstDrip!=null){txt+=' · first drip '+fmtT(m.firstDrip);if(m.avgFlow!=null)txt+=' · average flow '+m.avgFlow.toFixed(1)+' g/s'}
+ return txt;
+}
+const shown=()=>brewing?brew:cmp?null:viewBrew;
 
-// ---- compare: overlay 2 to 4 saved brews ----
-const CMP_STYLE=[{color:'#E8955A',dash:[]},{color:'#6FB1E0',dash:[8,5]},{color:'#7BC47F',dash:[2,4]},{color:'#C79BE0',dash:[10,4,2,4]}];
-let selected=new Set(),cmp=null;
-function cmpName(b){return (b.label?b.label+' · ':'')+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}
-function cmpShift(b){return cmp.align==='drip'?(WL.firstDripTime(b.rows)||0):0}
-function drawCompare(cw,cf){
- const bs=cmp.brews;let x0=0,x1=30;
- for(const b of bs){const sh=cmpShift(b);x0=Math.min(x0,-sh);x1=Math.max(x1,b.dur-sh)}
- x0=Math.floor(x0/5)*5;x1=Math.max(30,Math.ceil(x1/10)*10);
- const ser=(i,b,col)=>({color:CMP_STYLE[i].color,dash:CMP_STYLE[i].dash,pts:b.rows.filter(r=>r[col]!=null).map(r=>({t:r[0]-cmpShift(b),v:r[col]}))});
- drawSeries(cw,bs.map((b,i)=>ser(i,b,1)),false,5,x0,x1,false);
- drawSeries(cf,bs.map((b,i)=>ser(i,b,2)),true,4,x0,x1,false);
+/* ---------- banner, messages ---------- */
+function computeBanner(){
+ if(!btOk)return{tone:'bad',msg:'This browser cannot use Bluetooth, so the scale cannot connect. Open this page in Chrome on Android or desktop (on iPhone or iPad: the Bluefy browser). Saved brews and CSV files still work.'};
+ if(lostLink&&brewing)return{tone:'warn',msg:'Connection to the scale lost. The timer keeps running. Reconnecting... Press STOP to end the brew with the data so far.'};
+ if(!storageOk)return{tone:'warn',msg:'Browser storage is not available here, so brews are kept only until you close this page. Download the CSV after each brew.'};
+ return null;
 }
-function renderCompareTable(){
- const tab=$('cmptab');tab.textContent='';
- const head=['','Brew','Smoothing','First drip','Complete at','Yield','Avg flow','Peak flow'],tr0=document.createElement('tr');
- for(const h of head){const th=document.createElement('th');th.textContent=h;th.style.cssText='text-align:left;font-weight:600;color:var(--mu);font-size:12px;padding:4px 10px 6px 0;white-space:nowrap';tr0.append(th)}tab.append(tr0);
- cmp.brews.forEach((b,i)=>{
-  const m=WL.brewMetrics(b),tr=document.createElement('tr'),cell=(txt)=>{const td=document.createElement('td');td.textContent=txt;td.style.cssText='padding:5px 10px 5px 0;white-space:nowrap;border-top:1px solid var(--line)';tr.append(td);return td};
-  const sw=cell('');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('width','34');svg.setAttribute('height','10');
-  const ln=document.createElementNS('http://www.w3.org/2000/svg','line');ln.setAttribute('x1','1');ln.setAttribute('x2','33');ln.setAttribute('y1','5');ln.setAttribute('y2','5');ln.setAttribute('stroke',CMP_STYLE[i].color);ln.setAttribute('stroke-width','3');if(CMP_STYLE[i].dash.length)ln.setAttribute('stroke-dasharray',CMP_STYLE[i].dash.join(' '));svg.append(ln);sw.append(svg);
-  cell(cmpName(b));cell(b.sm===1?'off':b.sm+' samples');
-  cell(m.firstDrip==null?'--':WL.fmtTimer(m.firstDrip));cell(WL.fmtTimer(m.dur));cell(m.yieldG==null?'--':m.yieldG.toFixed(1)+' g');
-  cell(m.avgFlow==null?'--':m.avgFlow.toFixed(2)+' g/s');cell(m.peakFlow==null?'--':m.peakFlow.toFixed(2)+' g/s');tab.append(tr)});
+const ICON={warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19z"/><path d="M12 10v5M12 18v.01"/></svg>',
+ ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"/></svg>',
+ bad:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'};
+let onOk=null;
+function anyPanelOpen(){return $('settings').classList.contains('open')||$('saved').classList.contains('open')}
+function notice(o){
+ const n=$('notice');n.className='card modal tone-'+(o.tone||'warn');$('noticeico').innerHTML=ICON[o.tone||'warn'];$('noticetitle').textContent=o.title||'Message';$('noticemsg').textContent=o.msg;
+ $('noticeok').textContent=o.ok||'OK';$('noticecancel').hidden=!o.cancel;onOk=o.onok||null;n.hidden=false;$('scrim').classList.add('show');$('noticeok').focus();
 }
+function closeModals(){$('notice').hidden=true;$('csvbox').hidden=true;if(!anyPanelOpen())$('scrim').classList.remove('show')}
+function openPanel(id){closePanels(true);$(id).classList.add('open');$('scrim').classList.add('show')}
+function closePanels(keep){['settings','saved'].forEach(i=>$(i).classList.remove('open'));if(!keep)$('scrim').classList.remove('show')}
+$('noticeok').onclick=()=>{const f=onOk;onOk=null;closeModals();if(f)f()};
+$('noticecancel').onclick=()=>{onOk=null;closeModals()};
+$('sclose').onclick=$('hclose').onclick=$('scrim').onclick=()=>{closePanels();closeModals()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePanels();closeModals()}});
+$('menu').onclick=()=>openPanel('settings');
+$('openSaved').onclick=()=>{renderHist();openPanel('saved')};
+
+/* ---------- charts (visual spec: weightlog/design) ---------- */
+const DASH=[[],[9,5],[2,5],[11,4,2,4]],MARK=['circle','square','triangle','diamond'];
+function swatch(i){
+ const c='var(--c'+(i+1)+')',da=DASH[i].join(' ');
+ const m=[`<circle cx="36" cy="8" r="4.5" fill="${c}"/>`,`<rect x="31.5" y="3.5" width="9" height="9" fill="${c}"/>`,`<path d="M36 3 41 12H31z" fill="${c}"/>`,`<path d="M36 2.5 41.5 8 36 13.5 30.5 8z" fill="${c}"/>`][i];
+ return `<svg width="44" height="16" viewBox="0 0 44 16" aria-hidden="true"><line x1="2" y1="8" x2="26" y2="8" stroke="${c}" stroke-width="3" stroke-linecap="round" ${da?`stroke-dasharray="${da}"`:''}/>${m}</svg>`;
+}
+function mark(g,shape,x,y,r){g.beginPath();
+ if(shape==='circle')g.arc(x,y,r,0,7);
+ else if(shape==='square')g.rect(x-r,y-r,2*r,2*r);
+ else if(shape==='triangle'){g.moveTo(x,y-r*1.2);g.lineTo(x+r*1.15,y+r*.9);g.lineTo(x-r*1.15,y+r*.9);g.closePath()}
+ else{g.moveTo(x,y-r*1.3);g.lineTo(x+r*1.3,y);g.lineTo(x,y+r*1.3);g.lineTo(x-r*1.3,y);g.closePath()}
+ g.fill();
+}
+function chart(cv,o){
+ const dpr=Math.min(window.devicePixelRatio||1,3),w=cv.clientWidth,h=cv.clientHeight;
+ if(!w||!h)return;
+ if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr)}
+ const g=cv.getContext('2d'),cs=getComputedStyle(document.body),C=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+ g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+ const pl=40,pr=14,pt=12,pb=26,X=t=>pl+(t-o.x0)/(o.x1-o.x0)*(w-pl-pr),Y=v=>pt+(1-(v-o.y0)/(o.y1-o.y0))*(h-pt-pb);
+ g.font='13px '+cs.fontFamily;g.textBaseline='middle';
+ const mu=C('--mu'),grid=C('--grid');
+ g.lineWidth=1;
+ for(let v=o.y0;v<=o.y1+1e-9;v+=o.ys){const y=Math.round(Y(v))+.5,z=Math.abs(v)<1e-9&&o.zeroLine;g.strokeStyle=z?mu:grid;g.setLineDash(z?[4,4]:[]);g.beginPath();g.moveTo(pl,y);g.lineTo(w-pr,y);g.stroke();g.setLineDash([]);
+  g.fillStyle=mu;g.textAlign='right';g.fillText(String(+v.toFixed(1)),pl-8,y)}
+ for(let t=o.x0;t<=o.x1+1e-9;t+=o.xs){const x=Math.round(X(t))+.5;g.strokeStyle=grid;g.beginPath();g.moveTo(x,pt);g.lineTo(x,h-pb);g.stroke();
+  g.fillStyle=mu;g.textAlign=t===o.x0?'left':(t>=o.x1-1e-9?'right':'center');g.fillText(o.xl(t),t===o.x0?x-4:(t>=o.x1-1e-9?x+4:x),h-pb+14)}
+ g.save();g.beginPath();g.rect(pl,pt-2,w-pl-pr+2,h-pt-pb+4);g.clip();
+ (o.vlines||[]).forEach(v=>{const x=Math.round(X(v.t))+.5;g.strokeStyle=mu;g.setLineDash([2,4]);g.lineWidth=1.5;g.beginPath();g.moveTo(x,pt);g.lineTo(x,h-pb);g.stroke();g.setLineDash([]);
+  g.fillStyle=mu;g.textAlign='left';g.fillText(v.text,x+6,pt+8)});
+ o.series.forEach(s=>{
+  const n=s.t.length;if(n<2)return;
+  g.lineWidth=s.lw||3;g.lineJoin='round';g.lineCap='round';g.strokeStyle=s.color;g.setLineDash(s.dash||[]);
+  g.beginPath();for(let i=0;i<n;i++){const x=X(s.t[i]),y=Y(Math.min(o.y1,Math.max(o.y0,s.v[i])));i?g.lineTo(x,y):g.moveTo(x,y)}
+  g.stroke();g.setLineDash([]);
+  if(s.fill){g.lineTo(X(s.t[n-1]),Y(Math.max(0,o.y0)));g.lineTo(X(s.t[0]),Y(Math.max(0,o.y0)));g.closePath();const gr=g.createLinearGradient(0,pt,0,h-pb);gr.addColorStop(0,s.color+'33');gr.addColorStop(1,s.color+'00');g.fillStyle=gr;g.fill()}
+ });
+ g.restore();
+ o.series.forEach(s=>{const n=s.t.length;if(!s.end||n<1)return;g.fillStyle=s.color;mark(g,s.mark||'circle',X(s.t[n-1]),Y(Math.min(o.y1,Math.max(o.y0,s.v[n-1]))),5.5)});
+}
+const STEPS=[1,2,5,10,20,50,100,200,500];
+function axis(min,max,minHi,minSpan,includeZero){      // returns {y0,y1,ys}
+ let lo=includeZero?(min<-0.5?min:0):min,hi=Math.max(max,minHi);   // noise below 0.5 does not move the baseline
+ if(!isFinite(lo)||!isFinite(hi)){lo=0;hi=minHi}
+ if(hi-lo<minSpan)hi=lo+minSpan;
+ const raw=(hi-lo)/4,ys=STEPS.find(s=>s>=raw)||1000;
+ return{y0:Math.floor(lo/ys)*ys,y1:Math.ceil(hi/ys)*ys,ys};
+}
+function xaxis(x0,x1){const steps=[5,10,15,30,60,120,300,600],xs=steps.find(s=>(x1-x0)/s<=7)||600;return xs}
+const xl=t=>(t<0?'-':'')+fmtDur(Math.abs(t));
+function series(rows,col){const t=[],v=[];for(const r of rows)if(r[col]!=null){t.push(r[0]);v.push(r[col])}return{t,v}}
+function minmax(list){let a=Infinity,b=-Infinity;for(const v of list)for(const x of v){if(x<a)a=x;if(x>b)b=x}return[a,b]}
+function setEmpty(show,title,txt){[$('wempty'),$('fempty')].forEach(e=>{e.hidden=!show;e.innerHTML=show?`<div><b>${esc(title)}</b>${esc(txt)}</div>`:''})}
+
+function drawCharts(){
+ const C=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+ let wo,fo,empty=null;
+ if(cmp){
+  const bs=cmp.brews,shift=b=>cmp.align==='drip'?(WL.firstDripTime(b.rows)||0):0;
+  const maxShift=Math.max(0,...bs.map(shift));
+  const x0=cmp.align==='drip'?-Math.max(5,Math.ceil(maxShift/5)*5):0,x1=Math.max(30,Math.ceil(Math.max(...bs.map(b=>b.dur-shift(b)))/10)*10),xs=xaxis(x0,x1);
+  const sr=col=>bs.map((b,k)=>{const s=series(b.rows,col);return{t:s.t.map(t=>t-shift(b)),v:s.v,color:C('--c'+(k+1)),dash:DASH[k],mark:MARK[k],end:true,lw:3}});
+  const ws=sr(1),fs=sr(2),[wmin,wmax]=minmax(ws.map(s=>s.v)),[fmin,fmax]=minmax(fs.map(s=>s.v));
+  wo=Object.assign({x0,x1,xs,xl,series:ws},axis(wmin,wmax,40,10,true));
+  fo=Object.assign({x0,x1,xs,xl,zeroLine:true,series:fs},axis(0,fmax,4,4,true));
+ }else if(brewing||viewBrew){
+  const b=brewing?brew:viewBrew,ws=series(b.rows,1),fs=series(b.rows,2),dur=brewing?now()-t0:b.dur;
+  const x1=Math.max(30,Math.ceil((brewing?dur+4:dur+1)/10)*10),xs=xaxis(0,x1),fd=WL.firstDripTime(b.rows);
+  const [wmin,wmax]=minmax([ws.v]),[fmin,fmax]=minmax([fs.v]);
+  wo=Object.assign({x0:0,x1,xs,xl,vlines:fd!=null?[{t:fd,text:'first drip '+fmtT(fd)}]:[],series:[{t:ws.t,v:ws.v,color:C('--w'),lw:3,end:true,mark:'circle',fill:true}]},axis(Math.min(0,wmin),wmax,40,10,true));
+  fo=Object.assign({x0:0,x1,xs,xl,zeroLine:true,series:[{t:fs.t,v:fs.v,color:C('--f'),dash:[9,5],lw:3,end:true,mark:'square'}]},axis(0,fmax,4,4,true));
+  if(ws.t.length<2)empty=['Waiting for the first readings','Weight and flow appear here.'];
+ }else{
+  const win=+$('win').value,tn=now(),pts=buf.filter(p=>p.t>=tn-win);
+  const wt=[],wv=[],ft=[],fv=[];for(const p of pts){if(p.g!=null){wt.push(p.t-tn);wv.push(p.g)}if(p.f!=null){ft.push(p.t-tn);fv.push(p.f)}}
+  const xs=win<=30?10:win<=60?20:win<=120?30:60,lx=t=>t===0?'now':'-'+(win>=120?(-t/60)+'m':(-t)+'s');
+  const [wmin,wmax]=minmax([wv]),[fmin,fmax]=minmax([fv]);
+  wo=Object.assign({x0:-win,x1:0,xs,xl:lx,zeroLine:true,series:[{t:wt,v:wv,color:C('--w'),lw:3,end:wt.length>0,mark:'circle'}]},axis(Math.min(-10,wmin),wmax,40,10,true));
+  fo=Object.assign({x0:-win,x1:0,xs,xl:lx,zeroLine:true,series:[{t:ft,v:fv,color:C('--f'),dash:[9,5],lw:3,end:ft.length>0,mark:'square'}]},axis(Math.min(-1,fmin),fmax,4,4,true));
+  if(!connected&&!DEMO&&wt.length<2)empty=['No data yet','Connect the scale to see live weight and flow.'];
+  else if(wt.length<2)empty=['Graphs cleared','Waiting for new readings...'];
+ }
+ setEmpty(!!empty,empty?empty[0]:'',empty?empty[1]:'');
+ chart($('cw'),wo);chart($('cf'),fo);
+}
+
+/* ---------- render everything from the state ---------- */
+function render(){
+ const conn=connected||DEMO,ph=brewing?'brew':cmp?'cmp':viewBrew?'view':'idle',b=shown(),t=now();
+ // top bar
+ $('cd').className='dot'+(lostLink?' bad':conn?' on':'');
+ $('cs').textContent=lostLink?'Connection lost':conn?'Connected · '+devName:'Not connected';
+ $('hz').textContent=conn&&!lostLink?rate.hz().toFixed(1):'0.0';$('lost').textContent=seqT.lost;
+ const cb=$('connect');cb.className=conn?'':'p';cb.disabled=!btOk&&!conn||DEMO;
+ cb.querySelector('.long').textContent=DEMO?'Demo':conn?'Disconnect':'Connect to BrewScale';cb.querySelector('.short').textContent=DEMO?'Demo':conn?'Disconnect':'Connect';
+ $('savedn').textContent=store.index().length;
+ $('mode').textContent=ph==='cmp'?'Compare':ph==='view'?'Saved brew':DEMO?'Demo':'';
+ // readings
+ const l=buf[buf.length-1],fresh=l&&t-l.t<2;
+ $('wv').textContent=fresh&&l.g!=null?l.g.toFixed(1):'--';$('wv').classList.toggle('neg',!!(fresh&&l.g!=null&&l.g<-0.5));
+ const fvn=fresh&&l.f!=null?Math.max(0,l.f):null;$('fv').textContent=fvn==null?'--':fvn.toFixed(1);$('fmeter').style.width=(fvn==null?0:Math.min(100,fvn/4*100))+'%';
+ const ws=buf.filter(p=>p.g!=null&&p.t>t-5).map(p=>p.g),nz=WL.noiseSd(ws);$('nz').textContent=nz==null?'--':nz.toFixed(2);
+ // zero button
+ const z=$('zero'),zl=z.querySelector('.zl'),zs=z.querySelector('.zs'),flash=zeroUntil>Date.now();
+ z.disabled=!conn||lostLink||brewing||lastRaw==null;z.classList.toggle('done',flash);
+ zl.textContent=flash?'Zeroed':ZERO_LABEL;
+ zs.textContent=flash?'graphs cleared':!conn?'connect the scale first':lostLink?'scale not reachable':brewing?'locked while brewing':ZERO_SUB;
+ // brew card
+ const m=$('main'),tl=m.querySelector('.tl'),ts=m.querySelector('.ts'),ti=m.querySelector('svg'),cupOn=$('cupstop').checked;
+ if(brewing){m.className='stop';m.disabled=false;tl.textContent='STOP';ts.textContent=cupOn?'or lift the cup':'tap to finish';if(ti.dataset.k!=='stop'){ti.innerHTML='<rect x="5" y="5" width="14" height="14" rx="2"/>';ti.dataset.k='stop'}}
+ else{m.className='go';m.disabled=!conn||lostLink||Date.now()<debounceUntil;tl.textContent='Start brewing';
+  ts.textContent=!conn?'connect the scale first':lostLink?'scale not reachable':($('zstart').checked?START_SUB:'start timer');if(ti.dataset.k!=='go'){ti.innerHTML='<path d="M7 4.5v15l13-7.5z"/>';ti.dataset.k='go'}}
+ $('timer').textContent=fmtT(brewing?t-t0:b?b.dur:0);
+ $('tlab').textContent=brewing?'Brewing':b?'Brew time (finished)':'Brew time';$('recdot').hidden=!brewing;
+ let bs;
+ if(brewing)bs=(lostLink?'Connection lost. The timer runs on; samples are missing.':'Recording. Press STOP'+(cupOn?' or lift the cup':'')+' when the shot is done.');
+ else if(b)bs=summary(b);
+ else if(cmp)bs='Comparing '+cmp.brews.length+' saved brews.';
+ else bs=!conn?'Connect to the scale, then start.':($('zstart').checked?'Ready. Start brewing zeroes the weight and clears the graphs.':'Ready. The timer starts, the weight is not zeroed.');
+ $('bstat').textContent=bs;
+ $('cuprule').classList.toggle('off',!cupOn);
+ $('cuprtxt').textContent=cupOn?'Auto-end: cup lifted (drop '+cup.dropG+' g)':'Auto-end off: press STOP to finish';
+ // chart card
+ const isCmp=ph==='cmp';$('dash').classList.toggle('cmp',isCmp);$('cmpcard').hidden=!isCmp;
+ const win=+$('win').value;
+ $('ctitle').textContent=isCmp?'Compare · '+cmp.brews.length+' brews · time zero at '+(cmp.align==='drip'?'first drip':'brew start'):
+  ph==='brew'?'Brewing · live':ph==='view'?(viewBrew.uploaded?'File · '+viewBrew.fileName:'Saved brew · '+(viewBrew.label?viewBrew.label+' · ':'')+fmtDS(viewBrew.start)):'Live · last '+(win>=120?win/60+' min':win+' s');
+ $('live').hidden=!(ph==='view');$('winl').style.display=ph==='idle'?'':'none';
+ const has=!!b&&!brewing;$('dl').disabled=!(b&&b.rows.length);$('cp').disabled=!(b&&b.rows.length);
+ $('savebrew').hidden=!(viewBrew&&viewBrew.uploaded&&!viewBrew.saved&&!brewing&&!cmp);
+ $('rs').textContent=b?(b.rows.length+' samples, '+fmtDur(brewing?t-t0:b.dur)):'No brew selected';
+ if(isCmp)renderCompare();
+ // panels and banner
+ $('compare').textContent='Compare ('+selected.length+')';$('compare').disabled=selected.length<2||brewing;
+ const nb=computeBanner(),el=$('banner');
+ if(!nb){el.hidden=true}else{el.hidden=false;el.className=nb.tone;$('bannermsg').textContent=nb.msg}
+ drawCharts();
+}
+function renderCompare(){
+ const bs=cmp.brews;$('calign').value=cmp.align;
+ let h='<thead><tr><th>Brew</th><th>Done at</th><th>Yield</th><th>First drip</th><th>Avg flow</th><th>Peak flow</th><th>Ended by</th><th>Smoothing</th></tr></thead><tbody>';
+ bs.forEach((b,k)=>{const m=WL.brewMetrics(b),lab=WL.reasonLabel(b.end&&b.end.reason||(b.interrupted?'interrupted':''));
+  h+=`<tr><td><span class="bn"><span class="bl" style="color:var(--c${k+1});border-color:var(--c${k+1})">${'ABCD'[k]}</span>${swatch(k)}<span>${esc(b.label||fmtDS(b.start))}</span></span></td><td>${fmtT(m.dur)}</td><td>${m.yieldG==null?'--':m.yieldG.toFixed(1)+' g'}</td><td>${m.firstDrip==null?'--':fmtT(m.firstDrip)}</td><td>${m.avgFlow==null?'--':m.avgFlow.toFixed(1)+' g/s'}</td><td>${m.peakFlow==null?'--':m.peakFlow.toFixed(1)+' g/s'}</td><td>${esc(lab||'--')}</td><td>${b.sm===1?'off':b.sm+' samples'}</td></tr>`});
+ $('cmptab').innerHTML=h+'</tbody>';
+ $('legend').innerHTML=bs.map((b,k)=>`<span>${swatch(k)}<b>${'ABCD'[k]}</b> ${esc(b.label||fmtDS(b.start))}</span>`).join('');
+}
+
+/* ---------- saved brews ---------- */
+function renderHist(){
+ const idx=store.upgradeIndex(),h=$('hist');selected=selected.filter(id=>idx.some(m=>m.id===id));
+ $('compare').textContent='Compare ('+selected.length+')';$('compare').disabled=selected.length<2||brewing;$('clearall').hidden=!idx.length;
+ if(!idx.length){h.innerHTML='<div class="emptybox"><b>No saved brews yet</b><span>Finish a brew, or open a CSV file from an earlier brew.</span><button id="emptyopen">Open CSV...</button></div>';$('emptyopen').onclick=()=>$('openfile').onclick();return}
+ let html='';
+ idx.forEach(m=>{const k=selected.indexOf(m.id),on=k>=0,dis=!on&&selected.length>=4,lab=WL.reasonLabel(m.reason);
+  html+=`<div class="hrow${on?' sel':''}"><div class="htop"><label class="chkw" title="${dis?'You can compare up to 4 brews':'Select for compare'}"><input type="checkbox" class="chk" data-id="${esc(m.id)}" ${on?'checked':''} ${dis?'disabled':''} aria-label="Select this brew for compare"></label>
+   <div class="hinfo"><div class="ht">${esc(fmtDS(m.start))}${m.label?' · '+esc(m.label):''}</div><div class="hm">${fmtDur(m.dur)} · ${m.finalG==null?'--':m.finalG.toFixed(1)} g${lab?' · '+esc(lab):''}</div></div>${on?swatch(k):''}</div>
+   <div class="hbtns"><button data-a="view" data-id="${esc(m.id)}" class="p">View</button><button data-a="csv" data-id="${esc(m.id)}">CSV</button><button data-a="copy" data-id="${esc(m.id)}">Copy</button><button data-a="del" data-id="${esc(m.id)}" class="danger">Delete</button></div></div>`});
+ if(selected.length===1)html='<div class="hint2">Pick one more brew to compare (2 to 4).</div>'+html;
+ else if(selected.length>=4)html='<div class="hint2">4 brews picked: that is the maximum. Untick one to pick another.</div>'+html;
+ h.innerHTML=html;
+}
+$('hist').addEventListener('click',e=>{
+ const c=e.target.closest('input.chk');
+ if(c){const id=c.dataset.id;selected=c.checked?selected.concat(id):selected.filter(x=>x!==id);renderHist();dirty=true;return}
+ const b=e.target.closest('button[data-a]');if(!b)return;const id=b.dataset.id,br=store.get(id);
+ if(!br){renderHist();return}
+ if(b.dataset.a==='view'){viewBrew=br;cmp=null;closePanels();closeModals();dirty=true;scrollTo({top:0,behavior:'smooth'})}
+ else if(b.dataset.a==='csv')saveCsv(br);
+ else if(b.dataset.a==='copy')copyCsv(br);
+ else notice({tone:'warn',title:'Delete this brew?',msg:(br.label?br.label+', ':'')+fmtDS(br.start)+'. The brew is removed from this browser. CSV files you downloaded are not touched.',ok:'Delete',cancel:true,onok:()=>{
+  store.remove(id);selected=selected.filter(x=>x!==id);if(viewBrew&&viewBrew.id===id)viewBrew=null;if(cmp){cmp.brews=cmp.brews.filter(x=>x.id!==id);if(cmp.brews.length<2)cmp=null}renderHist();dirty=true}});
+});
+$('clearall').onclick=()=>notice({tone:'warn',title:'Delete all saved brews?',msg:'This removes '+store.index().length+' brews from this browser. CSV files you downloaded are not touched.',ok:'Delete all',cancel:true,onok:()=>{store.clearAll();selected=[];viewBrew=null;cmp=null;renderHist();dirty=true}});
 $('compare').onclick=()=>{
  if(brewing)return;
- const bs=[...selected].map(id=>store.get(id)).filter(Boolean).sort((a,b)=>a.start-b.start);
- if(bs.length<2){showNotice('Select at least 2 saved brews (tick the boxes in the list).');return}
- cmp={brews:bs,align:$('calign').value};viewBrew=null;renderCompareTable();dirty=true;closeDrawers();scrollTo({top:0,behavior:'smooth'});
+ const bs=selected.map(id=>store.get(id)).filter(Boolean);
+ if(bs.length<2){notice({tone:'warn',title:'Pick more brews',msg:'Tick at least 2 saved brews (up to 4) to compare them.'});return}
+ cmp={brews:bs,align:$('calign').value};viewBrew=null;closePanels();dirty=true;
 };
 $('cmpexit').onclick=()=>{cmp=null;dirty=true};
 $('calign').onchange=()=>{if(cmp){cmp.align=$('calign').value;dirty=true}};
+$('live').onclick=()=>{viewBrew=null;cmp=null;dirty=true};
 
-// ---- saved brews ----
-function fmtDur(s){return WL.fmtTimer(s).replace(/\.\d$/,'')}
-function renderHistory(){
- const idx=store.index(),box=$('hist');box.textContent='';$('openSaved').textContent='Saved brews ('+idx.length+')';
- $('clearall').hidden=!idx.length;
- if(!idx.length){const d=document.createElement('div');d.className='note';d.textContent='No saved brews yet.';box.append(d);return}
- for(const m of idx){
-  const it=document.createElement('div');it.className='it';
-  const t=document.createElement('div');t.className='t';
-  t.textContent=`${new Date(m.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}${m.label?' · '+m.label:''} · ${fmtDur(m.dur)} · ${m.finalG==null?'--':m.finalG.toFixed(1)} g${m.interrupted?' · interrupted':''}`;
-  const mk=(txt,fn)=>{const b=document.createElement('button');b.textContent=txt;b.onclick=fn;return b};
-  const cb=document.createElement('input');cb.type='checkbox';cb.checked=selected.has(m.id);cb.setAttribute('aria-label','Select for compare');cb.style.cssText='width:22px;height:22px';
-  cb.onchange=()=>{if(cb.checked){if(selected.size>=4){cb.checked=false;showNotice('You can compare up to 4 brews at a time.');return}selected.add(m.id)}else selected.delete(m.id);dirty=true};
-  it.append(cb,t,mk('View',()=>{const b=store.get(m.id);if(b){viewBrew=b;cmp=null;dirty=true;closeDrawers();scrollTo({top:0,behavior:'smooth'})}}),
-   mk('CSV',()=>{const b=store.get(m.id);if(b)saveCsv(b)}),mk('Copy',()=>{const b=store.get(m.id);if(b)copyCsv(b)}),
-   mk('Delete',()=>{if(confirm('Delete this brew?')){store.remove(m.id);selected.delete(m.id);if(viewBrew&&viewBrew.id===m.id)viewBrew=null;if(cmp){cmp.brews=cmp.brews.filter(x=>x.id!==m.id);if(cmp.brews.length<2)cmp=null}renderHistory();dirty=true}}));
-  box.append(it);
- }
-}
-$('clearall').onclick=()=>{if(confirm('Delete ALL saved brews from this browser?')){store.clearAll();viewBrew=null;selected.clear();cmp=null;renderHistory();dirty=true}};
-$('live').onclick=()=>{viewBrew=null;dirty=true};
-function showNotice(msg){$('noticemsg').textContent=msg;$('notice').hidden=false}
-$('noticeok').onclick=()=>{$('notice').hidden=true};
-
-// ---- readouts + charts ----
-function shown(){return brewing?brew:cmp?null:viewBrew}
-function readouts(){
- const l=buf[buf.length-1];
- if(!l||now()-l.t>2){$('wv').textContent='--';$('fv').textContent='--'}
- else{$('wv').textContent=l.g==null?'--':l.g.toFixed(1);$('wv').classList.toggle('neg',l.g!=null&&l.g<-0.5);
-  $('fv').textContent=l.f==null?'--':(l.f<=-0.05?'−':'')+Math.abs(l.f).toFixed(1)}
- const ws=buf.filter(p=>p.g!=null&&p.t>now()-5).map(p=>p.g),nz=WL.noiseSd(ws);$('nz').textContent=nz==null?'--':nz.toFixed(2);
- $('hz').textContent=rate.hz().toFixed(1);$('lost').textContent=seqT.lost;
- $('zero').disabled=!(connected||DEMO)||lastRaw==null;
- const canStart=connected||DEMO;
- $('main').className=brewing?'stop':'go';$('main').textContent=brewing?'STOP':'Start brewing';
- $('main').disabled=!brewing&&(!canStart||Date.now()<debounceUntil);   // no start without a scale; short lock after a press
- const b=shown();
- $('timer').textContent=WL.fmtTimer(brewing?now()-t0:b?b.dur:0);
- $('tlab').textContent=brewing?'Brewing':b?'Brew time (finished)':'Brew time';
-const finished=!brewing&&b;
- $('bstat').textContent=finished?summary(b):brewing?`Recording: ${brew.rows.length} samples`+(connected||DEMO?'':' · connection lost, reconnecting…'):canStart?'Ready. Pressing start zeroes the weight and clears the charts.':'Connect to the scale, then start.';
- $('ctitle').textContent=b?(b.uploaded?'Uploaded · '+b.fileName:'Brew'+(b.label?' · '+b.label:'')+(brewing?'':' · '+new Date(b.start).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}))):'Live';
- $('savebrew').hidden=!(viewBrew&&viewBrew.uploaded&&!viewBrew.saved&&!brewing);
- $('live').hidden=!viewBrew||brewing||!!cmp;$('winl').hidden=!!b||!!cmp;
- $('cmpcard').hidden=!cmp;if(cmp){$('ctitle').textContent='Compare · '+cmp.brews.length+' brews';$('bstat').textContent='Comparing '+cmp.brews.length+' saved brews. Press Exit compare to go back.'}
- $('compare').disabled=selected.size<2||brewing;$('compare').textContent='Compare ('+selected.size+')';
- $('dl').disabled=!b||!b.rows.length;$('cp').disabled=!b||!b.rows.length;
- $('rs').textContent=b?`${b.rows.length} samples, ${fmtDur(brewing?now()-t0:b.dur)}`:'No brew selected';
-}
-function setupCanvas(c){const d=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
- if(c.width!==Math.round(w*d)||c.height!==Math.round(h*d)){c.width=Math.round(w*d);c.height=Math.round(h*d)}
- const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);return[x,w,h]}
-function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
-function niceStep(s){const p=Math.pow(10,Math.floor(Math.log10(s))),m=s/p;return(m<1.5?1:m<3.5?2:m<7.5?5:10)*p}
-function mmss(sec){const a=Math.round(sec);return Math.floor(a/60)+':'+String(a%60).padStart(2,'0')}
-function fmtBack(d){const a=Math.round(-d);return a===0?'now':a>=60?`−${Math.floor(a/60)}:${String(a%60).padStart(2,'0')}`:`−${a} s`}
-// pts: [{t,v}] ; live: x counts back from now, brew: x = brew time from 0
-function drawChart(c,pts,color,zeroLine,minSpan,x0,x1,live){drawSeries(c,[{pts,color,dot:true}],zeroLine,minSpan,x0,x1,live)}
-// series: [{pts:[{t,v}], color, dash:[..], dot}] ; live: x counts back from now, else x = time (may be negative when aligned)
-function drawSeries(c,series,zeroLine,minSpan,x0,x1,live){
- const[x,W,H]=setupCanvas(c);if(!W)return;
- let lo=Infinity,hi=-Infinity,any=false;for(const se of series)for(const p of se.pts){any=true;lo=Math.min(lo,p.v);hi=Math.max(hi,p.v)}
- if(!any){lo=0;hi=minSpan}
- if(zeroLine){lo=Math.min(lo,0);hi=Math.max(hi,0)}
- if(hi-lo<minSpan){const m=(hi+lo)/2;lo=m-minSpan/2;hi=m+minSpan/2}
- const pad=(hi-lo)*.08;lo-=pad;hi+=pad;
- const L=44,T=6,B=18,PW=W-L-8,PH=H-T-B,px=t=>L+(t-x0)/(x1-x0)*PW,py=v=>T+(1-(v-lo)/(hi-lo))*PH;
- x.font='11px system-ui,sans-serif';x.fillStyle=css('--mu');x.strokeStyle=css('--line');x.lineWidth=1;
- const step=niceStep((hi-lo)/4);x.textAlign='right';x.textBaseline='middle';
- for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step){const y=Math.round(py(v))+.5;x.beginPath();x.moveTo(L,y);x.lineTo(L+PW,y);x.stroke();x.fillText(+v.toFixed(2),L-6,y)}
- x.textBaseline='alphabetic';x.textAlign='center';
- const steps=[5,10,15,30,60,120,300,600],ts=steps.find(s=>(x1-x0)/s<=7)||600;
- if(live){for(let k=0;x1-k*ts>=x0;k++)x.fillText(fmtBack(-k*ts),Math.max(px(x1-k*ts),L+10),H-3)}
- else{for(let t=Math.ceil(x0/ts)*ts;t<=x1;t+=ts){const X=px(t);x.strokeStyle=css('--line');x.beginPath();x.moveTo(Math.round(X)+.5,T);x.lineTo(Math.round(X)+.5,T+PH);x.stroke();x.fillText((t<0?'−':'')+mmss(Math.abs(t)),Math.max(X,L+10),H-3)}}
- if(zeroLine){x.strokeStyle=css('--mu');x.setLineDash([3,4]);x.beginPath();x.moveTo(L,py(0));x.lineTo(L+PW,py(0));x.stroke();x.setLineDash([])}
- for(const se of series){
-  x.strokeStyle=se.color;x.lineWidth=2;x.lineJoin='round';x.setLineDash(se.dash||[]);x.beginPath();let on=false;
-  for(const p of se.pts){const X=px(p.t),Y=py(p.v);on?x.lineTo(X,Y):x.moveTo(X,Y);on=true}x.stroke();x.setLineDash([]);
-  if(se.dot&&se.pts.length){const p=se.pts[se.pts.length-1];x.fillStyle=se.color;x.beginPath();x.arc(px(p.t),py(p.v),4,0,7);x.fill()}}
-}
-function frame(){
- if(dirty||brewing||DEMO){dirty=false;readouts();
-  const b=shown(),cw=$('cw'),cf=$('cf');
-  if(cmp){drawCompare(cw,cf)}
-  else if(b){const last=b.rows.length?b.rows[b.rows.length-1][0]:0,x1=Math.max(60,Math.ceil((brewing?now()-t0:b.dur||last)/30)*30);
-   drawChart(cw,b.rows.filter(r=>r[1]!=null).map(r=>({t:r[0],v:r[1]})),css('--w'),false,5,0,x1,false);
-   drawChart(cf,b.rows.filter(r=>r[2]!=null).map(r=>({t:r[0],v:r[2]})),css('--ac'),true,4,0,x1,false)}
-  else{const win=+$('win').value,tn=now();
-   drawChart(cw,buf.filter(p=>p.t>=tn-win&&p.g!=null).map(p=>({t:p.t,v:p.g})),css('--w'),false,5,tn-win,tn,true);
-   drawChart(cf,buf.filter(p=>p.t>=tn-win&&p.f!=null).map(p=>({t:p.t,v:p.f})),css('--ac'),true,4,tn-win,tn,true)}}
- requestAnimationFrame(frame)}
-setInterval(readouts,500);
-
-// ---- Bluetooth (Chrome / Bluefy: https or localhost) ----
-let dev=null,reconnects=0;
-function status(text,cls){$('cs').textContent=text;$('cd').className='dot '+(cls||'')}
-async function openGatt(){
- const server=await dev.gatt.connect(),svc=await server.getPrimaryService(WL.SVC),ch=await svc.getCharacteristic(WL.WEIGHT);
- ch.addEventListener('characteristicvaluechanged',e=>{const p=WL.parsePacket(e.target.value);if(p)onSample(p)});
- await ch.startNotifications();           // the only thing this page asks of the scale
- connected=true;reconnects=0;flowCalc.reset();seqT.reset();status('Connected: '+(dev.name||'BrewScale'),'on');$('connect').textContent='Disconnect';dirty=true;
-}
-async function onDisconnected(){
- connected=false;status('Connection lost: reconnecting…','bad');
- while(!connected&&dev&&reconnects<60){reconnects++;await new Promise(r=>setTimeout(r,2000));
-  try{await openGatt();return}catch(e){status(`Reconnecting (${reconnects})…`,'bad')}}
- if(!connected){status('Not connected','');$('connect').textContent='Connect to BrewScale'}
-}
-async function connect(){
- if(!navigator.bluetooth){status('This browser has no Web Bluetooth: use Chrome (or Bluefy on iPad)','bad');return}
- if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;status('Not connected','');$('connect').textContent='Connect to BrewScale';return}
- try{
-  status('Choose BrewScale in the dialog…','');
-  dev=await navigator.bluetooth.requestDevice({filters:[{services:[WL.SVC]},{name:'BrewScale'}],optionalServices:[WL.SVC]});
-  dev.addEventListener('gattserverdisconnected',onDisconnected);
-  status('Connecting…','');await openGatt();
- }catch(e){status(e.name==='NotFoundError'?'No device chosen':'Failed: '+e.message,'bad');dev=null;
-  if(/Unsupported device|GATT operation failed|already/i.test(e.message))$('hint').textContent='If it keeps failing: another device may hold the connection. Switch it off and try again.'}
-}
-$('connect').onclick=connect;
-
-// ---- settings ----
-$('zero').onclick=()=>{if(lastRaw!=null){offset=lastRaw;ma.reset();flowCalc.reset()}};
-$('sm').value=String(smN);if($('sm').value!==String(smN)){smN=3;$('sm').value='3'}
-$('sm').onchange=()=>{smN=+$('sm').value;ma=new WL.MovingAvg(smN);flowCalc.reset();setPref('sm',smN)};
-$('zstart').checked=pref('zstart','1')==='1';$('zstart').onchange=()=>setPref('zstart',$('zstart').checked?'1':'0');
-$('cupstop').checked=pref('cupstop','1')==='1';$('cupstop').onchange=()=>setPref('cupstop',$('cupstop').checked?'1':'0');
-$('cupdrop').value=pref('cupdrop','20');$('cupdrop').onchange=()=>{const v=Math.max(5,Math.min(500,+$('cupdrop').value||20));$('cupdrop').value=v;cup.dropG=v;setPref('cupdrop',v)};
-$('label').value=pref('label','');$('label').oninput=()=>setPref('label',$('label').value);
-$('win').onchange=()=>{dirty=true};addEventListener('resize',()=>{dirty=true});
-
-// ---- saving a CSV: desktop = file download; iPad/iPhone browsers ignore the download attribute, so the share sheet is used ----
+/* ---------- CSV: save, copy, open ---------- */
 let IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function csvName(b){
  const z=n=>String(n).padStart(2,'0'),d=new Date(b.start),lab=(b.label||'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24);
- return `weightlog-${lab?lab+'-':''}${b.sm===1?'raw':'ma'+b.sm}-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.csv`}
-function showCsv(b,msg){$('csvmsg').textContent=msg;$('csvtxt').value=WL.rowsToCsv(b.rows);$('csvbox').hidden=false;$('csvtxt').focus();$('csvtxt').select();$('csvbox').scrollIntoView({block:'nearest'})}
+ return `weightlog-${lab?lab+'-':''}${b.sm===1?'raw':'ma'+b.sm}-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.csv`;
+}
+function showCsv(b,msg){$('csvmsg').textContent=msg;$('csvtxt').value=WL.rowsToCsv(b.rows);$('csvbox').hidden=false;$('scrim').classList.add('show');$('csvtxt').focus();$('csvtxt').select()}
 async function saveCsv(b){
  const name=csvName(b),text=WL.rowsToCsv(b.rows);
  if(IOS&&navigator.share&&navigator.canShare){
@@ -406,36 +740,32 @@ async function saveCsv(b){
 }
 async function copyCsv(b){
  try{await navigator.clipboard.writeText(WL.rowsToCsv(b.rows));$('rs').textContent='CSV copied ('+b.rows.length+' samples)';return}catch(e){}
- showCsv(b,'Copy was blocked. Select all and copy the text below.');
+ showCsv(b,'Copy failed on this browser. Select all, then copy the text by hand.');
 }
 $('dl').onclick=()=>{const b=shown();if(b)saveCsv(b)};$('cp').onclick=()=>{const b=shown();if(b)copyCsv(b)};
-$('csvsel').onclick=()=>{$('csvtxt').focus();$('csvtxt').select()};$('csvclose').onclick=()=>{$('csvbox').hidden=true};
-
-// ---- open a CSV exported by this page (button or drop) and view it like a finished brew ----
+$('csvsel').onclick=()=>{$('csvtxt').focus();$('csvtxt').select()};$('csvclose').onclick=closeModals;
 async function openCsvFile(file){
  if(!file)return;
- if(brewing){showNotice('Stop the running brew first, then open a file.');return}
- if(file.size>5*1024*1024){showNotice('The file is larger than 5 MB: this is not a Weight Log CSV.');return}
- let text;
- try{text=await file.text()}catch(e){showNotice('The file could not be read: '+e.message);return}
+ if(brewing){notice({tone:'warn',title:'A brew is running',msg:'Stop the running brew first, then open a file.'});return}
+ if(file.size>5*1024*1024){notice({tone:'bad',title:'Cannot open the file',msg:'The file is larger than 5 MB: this is not a Weight Log CSV.'});return}
+ let text;try{text=await file.text()}catch(e){notice({tone:'bad',title:'Cannot open the file',msg:'The file could not be read: '+e.message});return}
  const res=WL.parseCsv(text);
- if(res.error){showNotice('Could not open '+file.name+': '+res.error);return}
+ if(res.error){notice({tone:'bad',title:'Cannot open the file',msg:res.error});return}
  const info=WL.parseFileName(file.name),rows=res.rows.map(r=>[r[0],r[1],r[2]==null?null:r[2],r[3]==null?null:r[3],r[4],r[5]]);
- // Files from before the cup rule (or recorded with it switched off) still contain the cup lift: apply the same rule to the raw column.
- let cutNote='';
+ // files from before the cup rule (or recorded with it off) still contain the cup lift: apply the same rule to the raw column
+ let cutNote=null;
  if($('cupstop').checked&&rows.some(r=>r[3]!=null)){
-  const det=new WL.CupRemoval(+$('cupdrop').value||20,2);let hit=null;
+  const det=new WL.CupRemoval(cup.dropG,2);let hit=null;
   for(const r of rows){if(r[3]==null)continue;hit=det.push(r[0],r[3],r[0]>=2);if(hit)break}
   const first=rows.find(r=>r[1]!=null&&r[3]!=null);
   if(hit&&first){const zero=first[3]-first[1],cut=rows.filter(r=>r[0]<=hit.endT);
    if(cut.length>=5){rows.length=0;rows.push(...cut);cutNote={endT:hit.endT,finalG:+(hit.finalRaw-zero).toFixed(2)}}}
  }
- const lastG=[...rows].reverse().find(r=>r[1]!=null);
+ const lastG=[...rows].reverse().find(r=>r[1]!=null),dur=cutNote?cutNote.endT:rows[rows.length-1][0];
  viewBrew={id:'up'+Date.now().toString(36),start:info.start||file.lastModified||Date.now(),label:info.label!=null?info.label:file.name.replace(/\.csv$/i,'').slice(0,24),
-  sm:info.sm||smN,dur:rows[rows.length-1][0],interrupted:false,uploaded:true,saved:false,fileName:file.name,rows,end:cutNote?{reason:'cup-removed',t:cutNote.endT,finalG:cutNote.finalG}:{reason:'imported',t:rows[rows.length-1][0],finalG:lastG?lastG[1]:null}};
- if(cutNote)viewBrew.dur=cutNote.endT;
- dirty=true;closeDrawers();scrollTo({top:0,behavior:'smooth'});
- if(res.bad)showNotice(`${res.bad} line(s) of the file could not be read and were skipped.`);
+  sm:info.sm||smN,dur,interrupted:false,uploaded:true,saved:false,fileName:file.name,rows,end:cutNote?{reason:'cup-removed',t:cutNote.endT,finalG:cutNote.finalG}:{reason:'imported',t:dur,finalG:lastG?lastG[1]:null}};
+ cmp=null;dirty=true;closePanels();closeModals();scrollTo({top:0,behavior:'smooth'});
+ if(res.bad)notice({tone:'warn',title:'Some lines skipped',msg:res.bad+' line(s) of the file could not be read and were skipped.'});
 }
 $('openfile').onclick=()=>{$('file').value='';$('file').click()};
 $('file').onchange=()=>{const f=$('file').files&&$('file').files[0];openCsvFile(f)};
@@ -444,27 +774,79 @@ addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files&&e.dataTrans
 $('savebrew').onclick=()=>{
  if(!viewBrew||!viewBrew.uploaded)return;
  const b=viewBrew,ok=store.save({id:b.id,start:b.start,label:b.label,sm:b.sm,dur:b.dur,interrupted:false,rows:b.rows,end:b.end});
- if(ok){b.saved=true;renderHistory();dirty=true}else showNotice('The browser storage is full or blocked: the file was NOT saved.');
+ if(ok){b.saved=true;renderHist();dirty=true}else notice({tone:'warn',title:'Could not save',msg:'The browser storage is full or blocked: the file was NOT saved.'});
 };
 
-// ---- on load: recover a brew that a reload interrupted, import the log of the older page version ----
+/* ---------- Bluetooth (Chrome / Bluefy: https or localhost) ---------- */
+let dev=null,reconnects=0;
+async function openGatt(){
+ const server=await dev.gatt.connect(),svc=await server.getPrimaryService(WL.SVC),ch=await svc.getCharacteristic(WL.WEIGHT);
+ ch.addEventListener('characteristicvaluechanged',e=>{const p=WL.parsePacket(e.target.value);if(p)onSample(p)});
+ await ch.startNotifications();           // the only thing this page asks of the scale
+ connected=true;lostLink=false;reconnects=0;flowCalc.reset();seqT.reset();devName=dev.name||'BrewScale';dirty=true;
+}
+async function onDisconnected(){
+ connected=false;lostLink=true;dirty=true;
+ while(!connected&&dev&&reconnects<60){reconnects++;await new Promise(r=>setTimeout(r,2000));try{await openGatt();return}catch(e){}}
+ if(!connected){lostLink=false;dirty=true}
+}
+async function connect(){
+ if(!navigator.bluetooth)return;
+ if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;lostLink=false;dirty=true;return}
+ try{
+  dev=await navigator.bluetooth.requestDevice({filters:[{services:[WL.SVC]},{name:'BrewScale'}],optionalServices:[WL.SVC]});
+  dev.addEventListener('gattserverdisconnected',onDisconnected);
+  await openGatt();
+ }catch(e){dev=null;if(e.name==='NotFoundError')return;
+  notice({tone:'bad',title:'Cannot connect',msg:'The scale accepts one connection at a time. Disconnect other devices (phone, other browser tab, the Brewer board) from it, then press Connect again. ('+e.message+')',ok:'OK'})}
+}
+$('connect').onclick=connect;
+
+/* ---------- zero / tare ---------- */
+function tare(){if(lastRaw==null||brewing||!(connected||DEMO))return;zeroNow();zeroUntil=Date.now()+2000;dirty=true}
+$('zero').onclick=tare;
+
+/* ---------- main button and settings ---------- */
+$('main').onclick=()=>{if(brewing)stopBrewing();else if(Date.now()>=debounceUntil)startBrewing()};
+$('sm').value=String(smN);if($('sm').value!==String(smN)){smN=3;$('sm').value='3'}
+$('sm').onchange=()=>{smN=+$('sm').value;ma=new WL.MovingAvg(smN);flowCalc.reset();setPref('sm',smN);dirty=true};
+$('zstart').checked=pref('zstart','1')==='1';$('zstart').onchange=()=>{setPref('zstart',$('zstart').checked?'1':'0');dirty=true};
+$('cupstop').checked=pref('cupstop','1')==='1';$('cupstop').onchange=()=>{setPref('cupstop',$('cupstop').checked?'1':'0');dirty=true};
+function setDrop(v){v=Math.max(5,Math.min(500,Math.round(+v)||20));$('cupdrop').value=v;cup.dropG=v;setPref('cupdrop',v);dirty=true}
+$('cupdrop').value=cup.dropG;$('cupdrop').onchange=()=>setDrop($('cupdrop').value);
+$('cupminus').onclick=()=>setDrop(cup.dropG-5);$('cupplus').onclick=()=>setDrop(cup.dropG+5);
+$('label').value=pref('label','');$('label').oninput=()=>setPref('label',$('label').value);
+$('win').onchange=()=>{dirty=true};
+addEventListener('resize',()=>{dirty=true});
+if(window.ResizeObserver)new ResizeObserver(()=>{dirty=true}).observe($('chartcard'));
+
+/* ---------- start-up: recover an interrupted brew, import the log of an older page version ---------- */
 (function recover(){
  const a=store.loadActive();
  if(a&&a.rows.length){a.interrupted=true;a.dur=a.rows[a.rows.length-1][0];store.save(a);viewBrew=a;
-  showNotice(`The page was reloaded or closed during a brew. The ${fmtDur(a.dur)} that was recorded (${a.rows.length} samples) is saved and shown below.`)}
+  notice({tone:'warn',title:'Brew recovered',msg:`The page was reloaded or closed during a brew. The ${fmtDur(a.dur)} that was recorded (${a.rows.length} samples) is saved and shown.`})}
  store.clearActive();
- try{const old=JSON.parse(localStorage.getItem('wl.log')||'null');   // autosave of the previous page version
+ try{const old=JSON.parse(localStorage.getItem('wl.log')||'null');
   if(old&&old.rows&&old.rows.length){const b={id:'old'+Date.now().toString(36),start:Date.parse(old.saved)||Date.now(),label:'imported',sm:old.sm||3,dur:old.rows[old.rows.length-1][0],interrupted:true,rows:old.rows};store.save(b);if(!viewBrew)viewBrew=b}
   localStorage.removeItem('wl.log')}catch(e){}
- renderHistory();
+ renderHist();
 })();
 
-// ---- demo (?demo): a simulated scale with five ~50 g pours, so the page can be tried without hardware ----
+/* ---------- demo (?demo): a simulated scale with five ~50 g pours, so the page works without hardware ---------- */
+let demoTimer=null;
 if(DEMO){
- $('mode').textContent='· demo data';$('connect').disabled=true;$('connect').textContent='Demo running';status('Demo','on');
  let seq=0,w=0,tt=0;const pours=[[2,12],[47,56],[67,75],[87,95],[106,113]];
- setInterval(()=>{tt+=.1;let r=0;for(const[a,b]of pours)if(tt>=a&&tt<b)r=51/(b-a);w+=r*.1;
+ demoTimer=setInterval(()=>{tt+=.1;let r=0;for(const[a,b]of pours)if(tt>=a&&tt<b)r=51/(b-a);w+=r*.1;
   onSample({seq:seq++&0xFFFF,flags:3,noData:false,tared:true,calibrated:true,g:+(w+(Math.random()-.5)*.6-.3+260).toFixed(2)})},100);
 }
-requestAnimationFrame(frame);readouts();
-</script></body></html>
+
+/* ---------- main loop ---------- */
+function frame(){const n=performance.now();if((dirty||brewing||DEMO||zeroUntil>Date.now())&&n-lastR>=90){dirty=false;lastR=n;render()}requestAnimationFrame(frame)}
+setInterval(()=>{dirty=true},500);
+render();requestAnimationFrame(frame);
+// test hook (used by the checks in test notes; harmless for users)
+window.WLapp={onSample,store,openCsvFile,tare,stopDemo(){clearInterval(demoTimer)},get state(){return{brewing,connected,cmp,viewBrew,selected,offset,buf}}};
+})();
+</script>
+</body>
+</html>

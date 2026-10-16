@@ -7,12 +7,15 @@ It was made for a DIY scale (ESP32-C3 + HX711 load cell amp) used for pour-over 
 the 7-byte packet below will work.
 
 ## Layout
-- **Tablet landscape / desktop (width 900 px or more):** a dashboard that fits one screen without scrolling. Left: weight and flow, the timer and the big Start brewing / STOP button. Right: one tall card with the weight and flow charts (the compare table appears under them). The *Settings* panel slides in from the left and *Saved brews* from the right.
-- **Phone / portrait tablet:** one column, with settings and saved brews at the bottom.
+The look comes from a design (`weightlog/design` in the project folder, not published).
+- **Tablet landscape / desktop (900 px wide or more):** a dashboard that fits one screen without scrolling. Top bar: Settings, title, connection and rate, Saved brews, Connect. Left: weight (with the Zero button) and flow, then the timer with the very large Start brewing / STOP tile. Right: one tall card with the weight and flow charts; in Compare the two charts sit side by side with the table under them.
+- **Settings** slide in from the left and **Saved brews** from the right. Messages and the CSV text box are pop-ups; lasting problems (no Bluetooth, connection lost during a brew) use a banner.
+- **Portrait tablet (560 to 899 px):** one column with wide cards. **Phone (below 560 px):** one column, smaller type.
+- Dark theme by default, light theme through the system setting. Each chart series differs in colour and in line style, so colour is never the only cue. The red dot next to "Brewing" is the recording indicator; the connection dot is green.
 
 ## How it works
 1. **Connect** to the scale (Chrome, or Bluefy on iPad).
-2. Press **Start brewing**. The page zeroes the weight (switch off with *Zero at start*), clears the charts, sets t0 and starts the timer.
+2. Press **Start brewing**. The page zeroes the weight on this page (switch off with *Zero at start* in Settings), clears the charts, sets t0 and starts the timer. The **Zero** button does the same outside a brew (it changes only this page, not the scale).
 3. The charts show weight and flow rate against brew time. The big red **STOP** button ends the brew (a stop within 1 s of the start is ignored, so a double tap cannot end it).
 4. **Espresso / no 3-way valve:** if you lift the cup before the draw is over, the brew ends by itself (option *End brew when the cup is removed*). It triggers when the raw weight falls by 20 g or more (adjustable) within 2 s. The brew is marked complete where the last stable reading ended, the rows after it are dropped, and the weight at that moment is the yield. Small touches of the cup do not trigger it. Put the cup back later: it does not matter, the brew is finished.
 5. **Open CSV…** (or drop a file on the page) shows a CSV that this page exported, as a finished brew, even on another device. It is not saved unless you press *Save in browser*. Files that still contain the cup lift are cut at the cup removal, with the same rule as above.

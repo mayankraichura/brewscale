@@ -1,6 +1,6 @@
 // node test.js : checks the packet parsing, the flow maths on a synthetic brew, the smoothing and the CSV output.
-// No data files are needed: the weight series is generated here (five pours of 50 g, small pseudo random noise).
-const assert = require('assert');
+// No recorded data is needed: the weight series is generated here (five pours of 50 g, small pseudo random noise). The page file is checked for wiring.
+const assert = require('assert'), fs = require('fs'), path = require('path');
 const WL = require('./core.js');
 
 // 1. packet parsing
@@ -150,5 +150,22 @@ assert.strictEqual(WL.firstDripTime([]), null);
   assert.deepStrictEqual(up.map(m => m.reason), [null, 'imported', 'interrupted', 'manual', 'cup-removed']);
   assert.deepStrictEqual(stx.index().map(m => m.reason), up.map(m => m.reason), 'the upgraded index is stored');
   assert.deepStrictEqual(new WL.BrewStore(new Mem(), 3).upgradeIndex(), [], 'an empty store is fine');
+}
+// 12. page wiring: every id the script uses exists once in the markup, no mockup parts, the script compiles
+{
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const markup = html.slice(0, html.indexOf('<script'));
+  const ids = [...markup.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+  const dup = ids.filter((x, i) => ids.indexOf(x) !== i);
+  assert.deepStrictEqual(dup, [], 'duplicate ids: ' + dup);
+  const start = html.indexOf('<script>');
+  const code = html.slice(start + 8, html.indexOf('</script>', start));
+  const used = new Set([...code.matchAll(/\$\('([A-Za-z]+)'\)/g)].map(m => m[1]));
+  const dynamic = ['emptyopen'];   // created by the script itself
+  const missing = [...used].filter(x => !ids.includes(x) && !dynamic.includes(x));
+  assert.deepStrictEqual(missing, [], 'ids used by the script but missing in the markup: ' + missing);
+  assert.ok(!/@container|MOCKUP|mockbar/.test(html), 'no mockup parts left in the page');
+  new Function(code);   // throws on a syntax error
+  assert.ok(ids.length > 60, 'the markup has its elements');
 }
 console.log('all tests passed');
