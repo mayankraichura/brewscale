@@ -15,7 +15,7 @@ The look comes from a design (`weightlog/design` in the project folder, not publ
 
 ## How it works
 1. **Connect** to the scale (Chrome, or Bluefy on iPad).
-2. Press **Start brewing**. The page zeroes the weight on this page (switch off with *Zero at start* in Settings), clears the charts, sets t0 and starts the timer. The **Zero** button does the same outside a brew (it changes only this page, not the scale).
+2. Press **Start brewing**. The page zeroes the weight on this page (switch off with *Zero at start* in Settings), clears the charts, sets t0 and starts the timer. The **Tare** button sends the scale's own tare command and clears the graphs (see *Tare* below).
 3. The charts show weight and flow rate against brew time. The big red **STOP** button ends the brew (a stop within 1 s of the start is ignored, so a double tap cannot end it).
 4. **Espresso / no 3-way valve:** if you lift the cup before the draw is over, the brew ends by itself (option *End brew when the cup is removed*). It triggers when the raw weight falls by 20 g or more (adjustable) within 2 s. The brew is marked complete where the last stable reading ended, the rows after it are dropped, and the weight at that moment is the yield. Small touches of the cup do not trigger it. Put the cup back later: it does not matter, the brew is finished.
 5. **Open CSV…** (or drop a file on the page) shows a CSV that this page exported, as a finished brew, even on another device. It is not saved unless you press *Save in browser*. Files that still contain the cup lift are cut at the cup removal, with the same rule as above.
@@ -26,7 +26,7 @@ The look comes from a design (`weightlog/design` in the project folder, not publ
 - Finished brews show a summary: completion time, yield, first drip and average flow
 - Timer, live weight and flow readouts, and two charts (live last 30 s to 5 min while idle, the whole brew during and after a brew)
 - Smoothing: moving average over 1 (off), 3, 5 or 10 samples, with a live noise readout
-- "Zero now" button: it only changes what the page shows and logs, the scale is never written to
+- **Tare** button: tares the scale over Bluetooth (the only command the page ever sends) and clears the graphs
 - Compare 2 to 4 saved brews on one chart, with a metrics table
 - Open a downloaded CSV again (button or drag and drop) and view it; optionally save it in the browser
 - Saved brews survive reloads and closed tabs (last 20, in the browser's local storage)
@@ -58,14 +58,24 @@ Device name `BrewScale`; service `b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001`; charact
 | 6 | uint8 | flags: bit0 tared, bit1 calibrated, bit2 no data from the load cell amp |
 
 To use another device, change the two UUID constants at the end of `core.js` and the `name` filter in `index.html`.
-The page only subscribes to notifications and never writes to the device.
+The page subscribes to the weight notifications. It also uses the command characteristic
+`b5a10003-5e1d-4c2a-9a3b-2f3c8d6e0001` (write, replies by notify) for ONE thing: after a tap on **Tare** it writes the
+text `t` and reads the replies (`taring: ...`, `tared`, `busy`). It never writes anything else (no calibration, no OTA).
+
+## Tare
+- The platform must be empty and still for 2 s. The button shows "Taring..." and then "Tared"; the graphs are cleared and the weight starts at 0.
+- Locked while a brew is recording (a tare would zero the log). One command per tap, no automatic retry.
+- If the scale answers "busy", or does not answer within 6 s, a message says so and nothing is zeroed.
+- The tare is stored on the scale, so other devices that use the same scale see it too.
+- If the scale has no command characteristic (older firmware) the button is called **Zero** and works on this page only.
+- Start brewing still zeroes only on this page (instant, switch off with *Zero at start*), because a scale tare takes 2 s.
 
 ## Flow rate
 Flow = (mean weight of the last 0.5 s) - (mean weight 1.0 to 1.5 s earlier), in g/s, computed from the smoothed weight
 and real arrival times.
 
 ## CSV
-`time_s,weight_g,flow_gps,raw_g,seq,flags`: `weight_g` is smoothed and after "Zero (view only)", `raw_g` is what the scale
+`time_s,weight_g,flow_gps,raw_g,seq,flags`: `weight_g` is smoothed and after the tare or zero, `raw_g` is what the scale
 sent. `time_s` is the brew time (0 = Start brewing). The first 1.5 s of a brew have no flow value. The file name contains the label, the smoothing and the start time.
 
 ## Run it

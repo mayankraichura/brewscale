@@ -151,6 +151,22 @@ assert.strictEqual(WL.firstDripTime([]), null);
   assert.deepStrictEqual(stx.index().map(m => m.reason), up.map(m => m.reason), 'the upgraded index is stored');
   assert.deepStrictEqual(new WL.BrewStore(new Mem(), 3).upgradeIndex(), [], 'an empty store is fine');
 }
+// 13. tare over Bluetooth: the command, the reply parser and the flow (no retry, busy, timeout)
+{
+  assert.strictEqual(WL.TARE_CMD, 't');
+  assert.strictEqual(WL.CMD, 'b5a10003-5e1d-4c2a-9a3b-2f3c8d6e0001');
+  assert.deepStrictEqual(['tared', 'TARED\n', 'taring: keep the platform empty and still (2 s)', 'busy', 'calibrated: 255.6 counts per gram', '', null].map(x => WL.parseCmdReply(x).kind),
+    ['tared', 'tared', 'taring', 'busy', 'other', 'other', 'other']);
+  let f = new WL.TareFlow(6000);
+  assert.strictEqual(f.state, 'idle'); assert.strictEqual(f.onReply('tared'), 'idle', 'an unasked reply is ignored');
+  assert.strictEqual(f.begin(1000), true); assert.strictEqual(f.state, 'sending'); assert.strictEqual(f.begin(1100), false, 'no second tare while one runs');
+  assert.strictEqual(f.onReply('taring: keep the platform empty and still (2 s)'), 'taring'); assert.ok(f.active);
+  assert.strictEqual(f.tick(5000), 'taring'); assert.strictEqual(f.onReply('tared'), 'done'); assert.ok(!f.active); f.reset(); assert.strictEqual(f.state, 'idle');
+  f.begin(0); assert.strictEqual(f.onReply('busy'), 'busy'); assert.ok(!f.active, 'busy ends the flow; the page does not retry'); f.reset();
+  f.begin(0); f.onReply('taring: x'); assert.strictEqual(f.tick(6001), 'timeout'); f.reset();
+  f.begin(0); assert.strictEqual(f.fail(), 'error'); f.reset(); assert.strictEqual(f.begin(1), true, 'a new tap starts a new flow');
+  f.begin(1); f.reset(); f.begin(2); f.onReply('weird reply'); assert.strictEqual(f.state, 'sending', 'other replies are ignored');
+}
 // 12. page wiring: every id the script uses exists once in the markup, no mockup parts, the script compiles
 {
   const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
@@ -167,5 +183,15 @@ assert.strictEqual(WL.firstDripTime([]), null);
   assert.ok(!/@container|MOCKUP|mockbar/.test(html), 'no mockup parts left in the page');
   new Function(code);   // throws on a syntax error
   assert.ok(ids.length > 60, 'the markup has its elements');
+  // contract C1 v1.1: the only write to the scale is the literal TARE_CMD, inside sendTare()
+  const writes = (code.match(/\.writeValue(WithResponse|WithoutResponse)?\s*\(/g) || []).length;
+  const fn = code.slice(code.indexOf('async function sendTare()'), code.indexOf('function afterTare()'));
+  const inFn = (fn.match(/\.writeValue(WithResponse|WithoutResponse)?\s*\(/g) || []).length;
+  assert.ok(fn.includes('WL.TARE_CMD'), 'sendTare sends WL.TARE_CMD');
+  assert.strictEqual(writes, inFn, 'no write to the scale outside sendTare()');
+  assert.ok(writes >= 1 && writes <= 2, 'one write path (with a fallback call)');
+  const sendCalls = (code.match(/sendTare\(\)/g) || []).length;   // the definition + the call inside tare()
+  assert.strictEqual(sendCalls, 2, 'sendTare() is called from tare() only');
+  assert.ok(!/['"]c ['"]|['"]ota['"]/.test(code), 'the page never mentions the calibrate or ota commands');
 }
 console.log('all tests passed');

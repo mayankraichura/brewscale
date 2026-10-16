@@ -334,9 +334,9 @@ input.chk:disabled{opacity:.35;cursor:not-allowed}
     <div class="card">
      <div class="wlab"><span class="lab">Weight</span><span class="readnote">noise (last 5 s): <span id="nz">--</span> g</span></div>
      <div><span class="num big" id="wv">--</span><span class="unit">g</span></div>
-     <button id="zero" disabled title="Zero the weight and clear both graphs. The scale itself is not changed.">
+     <button id="zero" disabled title="Tare the scale (empty and still for 2 s) and clear both graphs.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8M8.5 8 12 11.5 15.5 8M4 15h16M6 15l1 5h10l1-5"/></svg>
-      <span class="zt"><span class="zl">Zero</span><span class="zs">zero + clear graphs</span></span>
+      <span class="zt"><span class="zl">Tare</span><span class="zs">tare the scale + clear graphs</span></span>
      </button>
     </div>
     <div class="card">
@@ -405,7 +405,7 @@ input.chk:disabled{opacity:.35;cursor:not-allowed}
    </div>
    <div class="sec"><div class="lab">About</div>
     <div id="hint">The scale accepts one connection at a time: disconnect other devices from it first.</div>
-    <div id="aboutnote">Read-only: this page only listens to the scale and sends it nothing. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
+    <div id="aboutnote">This page listens to the scale. The only command it ever sends is Tare (the letter t), and only when you tap the Tare button. Brews are stored in this browser only, nothing is uploaded. Flow = mean weight of the last 0.5 s minus the mean 1.0 to 1.5 s earlier.</div>
    </div>
   </div>
  </aside>
@@ -439,7 +439,7 @@ input.chk:disabled{opacity:.35;cursor:not-allowed}
 
 <script src="core.js"></script>
 <script>
-const ZERO_LABEL='Zero',ZERO_SUB='zero + clear graphs',START_SUB='zero, clear graphs, start timer';
+const ZERO_LABEL='Tare',ZERO_SUB='tare the scale + clear graphs',START_SUB='zero, clear graphs, start timer';
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id);
@@ -641,11 +641,11 @@ function render(){
  $('wv').textContent=fresh&&l.g!=null?l.g.toFixed(1):'--';$('wv').classList.toggle('neg',!!(fresh&&l.g!=null&&l.g<-0.5));
  const fvn=fresh&&l.f!=null?Math.max(0,l.f):null;$('fv').textContent=fvn==null?'--':fvn.toFixed(1);$('fmeter').style.width=(fvn==null?0:Math.min(100,fvn/4*100))+'%';
  const ws=buf.filter(p=>p.g!=null&&p.t>t-5).map(p=>p.g),nz=WL.noiseSd(ws);$('nz').textContent=nz==null?'--':nz.toFixed(2);
- // zero button
- const z=$('zero'),zl=z.querySelector('.zl'),zs=z.querySelector('.zs'),flash=zeroUntil>Date.now();
- z.disabled=!conn||lostLink||brewing||lastRaw==null;z.classList.toggle('done',flash);
- zl.textContent=flash?'Zeroed':ZERO_LABEL;
- zs.textContent=flash?'graphs cleared':!conn?'connect the scale first':lostLink?'scale not reachable':brewing?'locked while brewing':ZERO_SUB;
+ // tare / zero button
+ const z=$('zero'),zl=z.querySelector('.zl'),zs=z.querySelector('.zs'),flash=zeroUntil>Date.now(),taring=tareFlow.active,can=canTare();
+ z.disabled=!conn||lostLink||brewing||lastRaw==null||taring;z.classList.toggle('done',flash);
+ zl.textContent=taring?'Taring...':flash?(can?'Tared':'Zeroed'):(can?'Tare':'Zero');
+ zs.textContent=taring?'keep the platform empty and still (2 s)':flash?'graphs cleared':!conn?'connect the scale first':lostLink?'scale not reachable':brewing?'locked while brewing':(can?'tare the scale + clear graphs':'zero + clear graphs (this page only)');
  // brew card
  const m=$('main'),tl=m.querySelector('.tl'),ts=m.querySelector('.ts'),ti=m.querySelector('svg'),cupOn=$('cupstop').checked;
  if(brewing){m.className='stop';m.disabled=false;tl.textContent='STOP';ts.textContent=cupOn?'or lift the cup':'tap to finish';if(ti.dataset.k!=='stop'){ti.innerHTML='<rect x="5" y="5" width="14" height="14" rx="2"/>';ti.dataset.k='stop'}}
@@ -778,21 +778,25 @@ $('savebrew').onclick=()=>{
 };
 
 /* ---------- Bluetooth (Chrome / Bluefy: https or localhost) ---------- */
-let dev=null,reconnects=0;
+let dev=null,reconnects=0,cmdChr=null;
+const tareFlow=new WL.TareFlow(6000);
 async function openGatt(){
  const server=await dev.gatt.connect(),svc=await server.getPrimaryService(WL.SVC),ch=await svc.getCharacteristic(WL.WEIGHT);
  ch.addEventListener('characteristicvaluechanged',e=>{const p=WL.parsePacket(e.target.value);if(p)onSample(p)});
- await ch.startNotifications();           // the only thing this page asks of the scale
+ await ch.startNotifications();
+ // The command characteristic is optional (older firmware): the page uses it for the replies to Tare, and writes ONLY the text "t" (contract C1 v1.1).
+ cmdChr=null;
+ try{const c=await svc.getCharacteristic(WL.CMD);c.addEventListener('characteristicvaluechanged',e=>onCmdReply(new TextDecoder().decode(e.target.value)));await c.startNotifications();cmdChr=c}catch(e){cmdChr=null}
  connected=true;lostLink=false;reconnects=0;flowCalc.reset();seqT.reset();devName=dev.name||'BrewScale';dirty=true;
 }
 async function onDisconnected(){
- connected=false;lostLink=true;dirty=true;
+ connected=false;lostLink=true;cmdChr=null;tareFlow.reset();dirty=true;
  while(!connected&&dev&&reconnects<60){reconnects++;await new Promise(r=>setTimeout(r,2000));try{await openGatt();return}catch(e){}}
  if(!connected){lostLink=false;dirty=true}
 }
 async function connect(){
  if(!navigator.bluetooth)return;
- if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;lostLink=false;dirty=true;return}
+ if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;lostLink=false;cmdChr=null;tareFlow.reset();dirty=true;return}
  try{
   dev=await navigator.bluetooth.requestDevice({filters:[{services:[WL.SVC]},{name:'BrewScale'}],optionalServices:[WL.SVC]});
   dev.addEventListener('gattserverdisconnected',onDisconnected);
@@ -802,8 +806,28 @@ async function connect(){
 }
 $('connect').onclick=connect;
 
-/* ---------- zero / tare ---------- */
-function tare(){if(lastRaw==null||brewing||!(connected||DEMO))return;zeroNow();zeroUntil=Date.now()+2000;dirty=true}
+/* ---------- tare (the scale's own tare over Bluetooth) ---------- */
+// Only a tap on the Tare button gets here. The page writes the literal text "t" and nothing else (C1 v1.1); the reply decides the rest.
+let demoZero=0,demoLast=0;
+const canTare=()=>DEMO||!!cmdChr;
+async function sendTare(){const data=new TextEncoder().encode(WL.TARE_CMD);if(cmdChr.writeValueWithResponse)await cmdChr.writeValueWithResponse(data);else await cmdChr.writeValue(data)}
+function afterTare(){offset=0;ma.reset();flowCalc.reset();buf=[];cleared=true;zeroUntil=Date.now()+2000;dirty=true}   // the scale now reports about 0
+function handleTare(st){
+ if(st==='done'){tareFlow.reset();afterTare()}
+ else if(st==='busy'){tareFlow.reset();notice({tone:'warn',title:'The scale is busy',msg:'The scale is already taring or calibrating. Wait a moment, then tap Tare again. The page does not retry by itself.'})}
+ else if(st==='timeout'){tareFlow.reset();notice({tone:'bad',title:'No answer from the scale',msg:'The scale did not confirm the tare, so nothing was zeroed. Check the connection, keep the platform empty and still, then tap Tare again.'})}
+ else if(st==='error'){tareFlow.reset();notice({tone:'bad',title:'Tare failed',msg:'The command could not be sent to the scale. Nothing was zeroed. Check the connection and tap Tare again.'})}
+ dirty=true;
+}
+function onCmdReply(text){handleTare(tareFlow.onReply(text))}
+setInterval(()=>{const st=tareFlow.tick(Date.now());if(st==='timeout')handleTare(st)},250);
+async function tare(){
+ if(brewing||!(connected||DEMO)||lostLink||tareFlow.active||lastRaw==null)return;       // never during a recording (it would zero the log)
+ if(DEMO){tareFlow.begin(Date.now());dirty=true;setTimeout(()=>onCmdReply('taring: keep the platform empty and still (2 s)'),150);setTimeout(()=>{demoZero=demoLast;onCmdReply('tared')},2150);return}
+ if(!cmdChr){zeroNow();zeroUntil=Date.now()+2000;dirty=true;return}                      // no command characteristic: zero on this page only
+ tareFlow.begin(Date.now());dirty=true;
+ try{await sendTare()}catch(e){handleTare(tareFlow.fail())}
+}
 $('zero').onclick=tare;
 
 /* ---------- main button and settings ---------- */
@@ -837,15 +861,16 @@ let demoTimer=null;
 if(DEMO){
  let seq=0,w=0,tt=0;const pours=[[2,12],[47,56],[67,75],[87,95],[106,113]];
  demoTimer=setInterval(()=>{tt+=.1;let r=0;for(const[a,b]of pours)if(tt>=a&&tt<b)r=51/(b-a);w+=r*.1;
-  onSample({seq:seq++&0xFFFF,flags:3,noData:false,tared:true,calibrated:true,g:+(w+(Math.random()-.5)*.6-.3+260).toFixed(2)})},100);
+  demoLast=+(w+(Math.random()-.5)*.6-.3+260).toFixed(2);onSample({seq:seq++&0xFFFF,flags:3,noData:false,tared:true,calibrated:true,g:+(demoLast-demoZero).toFixed(2)})},100);
 }
 
 /* ---------- main loop ---------- */
 function frame(){const n=performance.now();if((dirty||brewing||DEMO||zeroUntil>Date.now())&&n-lastR>=90){dirty=false;lastR=n;render()}requestAnimationFrame(frame)}
-setInterval(()=>{dirty=true},500);
+// state refresh twice a second; if animation frames stop (background tab, embedded browser) this timer redraws too
+setInterval(()=>{dirty=true;if(performance.now()-lastR>700){lastR=performance.now();dirty=false;render()}},500);
 render();requestAnimationFrame(frame);
 // test hook (used by the checks in test notes; harmless for users)
-window.WLapp={onSample,store,openCsvFile,tare,stopDemo(){clearInterval(demoTimer)},get state(){return{brewing,connected,cmp,viewBrew,selected,offset,buf}}};
+window.WLapp={onSample,store,openCsvFile,tare,onCmdReply,stopDemo(){clearInterval(demoTimer)},test:{setCmdChr(c){cmdChr=c},setConnected(v){connected=v;dirty=true},tareState(){return tareFlow.state}},get state(){return{brewing,connected,cmp,viewBrew,selected,offset,buf}}};
 })();
 </script>
 </body>

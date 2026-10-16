@@ -171,6 +171,36 @@
   function rowsToCsv(rows) {
     return toCsv(rows.map(r => ({ t: r[0], g: r[1], f: r[2], raw: r[3], seq: r[4], flags: r[5] })));
   }
+  // ---- Tare over Bluetooth (contract C1 v1.1) ------------------------------------------------------------------
+  // The page may write ONE command to the scale's command characteristic: the literal text "t" (tare), only after a tap.
+  const TARE_CMD = 't';
+  // The scale answers a tare with "taring: keep the platform empty and still (2 s)", then "tared"; "busy" while another job runs.
+  function parseCmdReply(text) {
+    const t = String(text == null ? '' : text).trim().toLowerCase();
+    if (t === 'tared') return { kind: 'tared', text: t };
+    if (t.startsWith('taring')) return { kind: 'taring', text: t };
+    if (t === 'busy') return { kind: 'busy', text: t };
+    return { kind: 'other', text: t };
+  }
+  // idle -> sending -> taring -> done; or busy / timeout / error. The page reads `state`, handles a final state, then calls reset().
+  // It never retries by itself (condition of C1 v1.1).
+  class TareFlow {
+    constructor(timeoutMs = 6000) { this.timeoutMs = timeoutMs; this.state = 'idle'; this.t0 = 0; }
+    get active() { return this.state === 'sending' || this.state === 'taring'; }
+    begin(now) { if (this.active) return false; this.state = 'sending'; this.t0 = now; return true; }
+    onReply(text) {
+      if (!this.active) return this.state;     // a reply nobody asked for is ignored
+      const r = parseCmdReply(text);
+      if (r.kind === 'taring') this.state = 'taring';
+      else if (r.kind === 'tared') this.state = 'done';
+      else if (r.kind === 'busy') this.state = 'busy';
+      return this.state;
+    }
+    fail() { this.state = 'error'; return this.state; }
+    tick(now) { if (this.active && now - this.t0 > this.timeoutMs) this.state = 'timeout'; return this.state; }
+    reset() { this.state = 'idle'; }
+  }
+
   // Time (s) of the first drip: the first row with a weight of 1 g or more; null if the weight never gets there.
   function firstDripTime(rows) {
     for (const r of rows) if (r[1] != null && r[1] >= 1) return r[0];
@@ -230,6 +260,6 @@
     return m + ':' + String(s).padStart(2, '0') + '.' + d;
   }
 
-  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, reasonLabel, CupRemoval, firstDripTime, brewMetrics, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
+  root.WL = { TARE_CMD, parseCmdReply, TareFlow, parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, reasonLabel, CupRemoval, firstDripTime, brewMetrics, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001', CMD: 'b5a10003-5e1d-4c2a-9a3b-2f3c8d6e0001' };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.WL;
 })(typeof self !== 'undefined' ? self : globalThis);
