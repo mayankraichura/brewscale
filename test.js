@@ -132,4 +132,23 @@ assert.ok(Math.abs(mt.yieldG - 40.35) < 0.01 && Math.abs(mt.avgFlow - 40.35 / (2
 mt = WL.brewMetrics({ rows: espresso, dur: 29.9, end: { finalG: 36.5 } }); assert.strictEqual(mt.yieldG, 36.5, 'the stored yield wins');
 mt = WL.brewMetrics({ rows: espresso.map(r => [r[0], 0, null, 0, 0, 0]), dur: 10 }); assert.strictEqual(mt.firstDrip, null); assert.strictEqual(mt.avgFlow, null); assert.strictEqual(mt.peakFlow, null);
 assert.strictEqual(WL.firstDripTime([]), null);
+// 11. end reason in the saved index, and the upgrade of an older index
+{
+  const mem = new Mem(); const stx = new WL.BrewStore(mem, 10);
+  stx.save({ ...mk('r1', 30), end: { reason: 'cup-removed', t: 3, finalG: 12 } });
+  stx.save({ ...mk('r2', 30), end: { reason: 'manual', t: 3, finalG: 13 } });
+  stx.save({ ...mk('r3', 30), interrupted: true });
+  stx.save({ ...mk('r4', 30), end: { reason: 'imported', t: 3, finalG: 14 } });
+  stx.save(mk('r5', 30));
+  assert.deepStrictEqual(stx.index().map(m => m.reason), [null, 'imported', 'interrupted', 'manual', 'cup-removed']);
+  assert.deepStrictEqual(['cup-removed', 'manual', 'imported', 'interrupted', null, 'x'].map(WL.reasonLabel), ['cup removed', 'stopped', 'file', 'interrupted', '', '']);
+  // an index from before this field existed
+  const old = JSON.parse(mem.getItem('wl.index')).map(m => { const c = { ...m }; delete c.reason; return c; });
+  mem.setItem('wl.index', JSON.stringify(old));
+  assert.ok(!('reason' in stx.index()[0]));
+  const up = stx.upgradeIndex();
+  assert.deepStrictEqual(up.map(m => m.reason), [null, 'imported', 'interrupted', 'manual', 'cup-removed']);
+  assert.deepStrictEqual(stx.index().map(m => m.reason), up.map(m => m.reason), 'the upgraded index is stored');
+  assert.deepStrictEqual(new WL.BrewStore(new Mem(), 3).upgradeIndex(), [], 'an empty store is fine');
+}
 console.log('all tests passed');

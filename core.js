@@ -119,7 +119,21 @@
     index() { const i = this._get('wl.index'); return Array.isArray(i) ? i : []; }
     meta(b) {
       const r = b.rows || [], last = r.length ? r[r.length - 1] : null;
-      return { id: b.id, start: b.start, label: b.label || '', sm: b.sm, dur: b.dur, n: r.length, finalG: b.end && b.end.finalG != null ? b.end.finalG : last ? last[1] : null, interrupted: !!b.interrupted };
+      return { id: b.id, start: b.start, label: b.label || '', sm: b.sm, dur: b.dur, n: r.length, finalG: b.end && b.end.finalG != null ? b.end.finalG : last ? last[1] : null,
+        interrupted: !!b.interrupted, reason: b.interrupted ? 'interrupted' : (b.end && b.end.reason) || null };
+    }
+    // Index entries written before the end reason existed get it from the brew itself (once).
+    upgradeIndex() {
+      const idx = this.index();
+      let changed = false;
+      for (const m of idx) {
+        if ('reason' in m) continue;
+        const b = this.get(m.id);
+        m.reason = b ? (b.interrupted ? 'interrupted' : (b.end && b.end.reason) || null) : null;
+        changed = true;
+      }
+      if (changed) this._set('wl.index', idx);
+      return idx;
     }
     save(b) {
       const idx = this.index().filter(m => m.id !== b.id);
@@ -149,6 +163,10 @@
     return out.join('\n') + '\n';
   }
 
+  // How a brew ended, in words for the lists and the compare table.
+  function reasonLabel(reason) {
+    return { 'cup-removed': 'cup removed', manual: 'stopped', imported: 'file', interrupted: 'interrupted' }[reason] || '';
+  }
   // rows as stored in a brew: [t, g, flow, raw, seq, flags]
   function rowsToCsv(rows) {
     return toCsv(rows.map(r => ({ t: r[0], g: r[1], f: r[2], raw: r[3], seq: r[4], flags: r[5] })));
@@ -212,6 +230,6 @@
     return m + ':' + String(s).padStart(2, '0') + '.' + d;
   }
 
-  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, CupRemoval, firstDripTime, brewMetrics, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
+  root.WL = { parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, reasonLabel, CupRemoval, firstDripTime, brewMetrics, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001' };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.WL;
 })(typeof self !== 'undefined' ? self : globalThis);
