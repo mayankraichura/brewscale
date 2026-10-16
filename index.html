@@ -336,7 +336,7 @@ input.chk:disabled{opacity:.35;cursor:not-allowed}
      <div><span class="num big" id="wv">--</span><span class="unit">g</span></div>
      <button id="zero" disabled title="Tare the scale (empty and still for 2 s) and clear both graphs.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8M8.5 8 12 11.5 15.5 8M4 15h16M6 15l1 5h10l1-5"/></svg>
-      <span class="zt"><span class="zl">Tare</span><span class="zs">tare the scale + clear graphs</span></span>
+      <span class="zt"><span class="zl">Tare</span><span class="zs">empty platform · clears graphs</span></span>
      </button>
     </div>
     <div class="card">
@@ -645,7 +645,7 @@ function render(){
  const z=$('zero'),zl=z.querySelector('.zl'),zs=z.querySelector('.zs'),flash=zeroUntil>Date.now(),taring=tareFlow.active,can=canTare();
  z.disabled=!conn||lostLink||brewing||lastRaw==null||taring;z.classList.toggle('done',flash);
  zl.textContent=taring?'Taring...':flash?(can?'Tared':'Zeroed'):(can?'Tare':'Zero');
- zs.textContent=taring?'keep the platform empty and still (2 s)':flash?'graphs cleared':!conn?'connect the scale first':lostLink?'scale not reachable':brewing?'locked while brewing':(can?'tare the scale + clear graphs':'zero + clear graphs (this page only)');
+ zs.textContent=taring?'keep the platform empty and still (2 s)':flash?'graphs cleared':!conn?'connect the scale first':lostLink?'scale not reachable':brewing?'locked while brewing':(can?'empty platform · clears graphs':'zero + clear graphs (this page only)');
  // brew card
  const m=$('main'),tl=m.querySelector('.tl'),ts=m.querySelector('.ts'),ti=m.querySelector('svg'),cupOn=$('cupstop').checked;
  if(brewing){m.className='stop';m.disabled=false;tl.textContent='STOP';ts.textContent=cupOn?'or lift the cup':'tap to finish';if(ti.dataset.k!=='stop'){ti.innerHTML='<rect x="5" y="5" width="14" height="14" rx="2"/>';ti.dataset.k='stop'}}

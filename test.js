@@ -183,6 +183,8 @@ assert.strictEqual(WL.firstDripTime([]), null);
   assert.ok(!/@container|MOCKUP|mockbar/.test(html), 'no mockup parts left in the page');
   new Function(code);   // throws on a syntax error
   assert.ok(ids.length > 60, 'the markup has its elements');
+  // the scale's tare has no stability check: the button itself must say that the platform has to be empty
+  assert.ok(/class="zs">empty platform/.test(html) && /can\?'empty platform/.test(code), 'the Tare button says: empty platform');
   // contract C1 v1.1: the only write to the scale is the literal TARE_CMD, inside sendTare()
   const writes = (code.match(/\.writeValue(WithResponse|WithoutResponse)?\s*\(/g) || []).length;
   const fn = code.slice(code.indexOf('async function sendTare()'), code.indexOf('function afterTare()'));
