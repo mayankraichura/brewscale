@@ -167,6 +167,44 @@ assert.strictEqual(WL.firstDripTime([]), null);
   f.begin(0); assert.strictEqual(f.fail(), 'error'); f.reset(); assert.strictEqual(f.begin(1), true, 'a new tap starts a new flow');
   f.begin(1); f.reset(); f.begin(2); f.onReply('weird reply'); assert.strictEqual(f.state, 'sending', 'other replies are ignored');
 }
+// 14. battery level (R-012): parser, and attachBattery with fake GATT servers (value, change, missing, bad values, no writes, no polling)
+{
+  const dvOf = n => { const b = new ArrayBuffer(1); new DataView(b).setUint8(0, n); return new DataView(b); };
+  assert.deepStrictEqual([0, 78, 100, 101, 255].map(n => WL.parseBattery(dvOf(n))), [0, 78, 100, null, null]);
+  assert.strictEqual(WL.parseBattery(new DataView(new ArrayBuffer(0))), null); assert.strictEqual(WL.parseBattery(null), null);
+  assert.strictEqual(WL.BAT_SVC, 0x180f); assert.strictEqual(WL.BAT_CHR, 0x2a19);
+  const fakeServer = (opts = {}) => {
+    const log = { reads: 0, notifies: 0, writes: 0, listeners: [] };
+    const chr = {
+      async readValue() { log.reads++; return dvOf(opts.value == null ? 78 : opts.value); },
+      addEventListener(t, fn) { log.listeners.push(fn); },
+      async startNotifications() { log.notifies++; },
+      writeValue() { log.writes++; }, writeValueWithResponse() { log.writes++; }, writeValueWithoutResponse() { log.writes++; },
+    };
+    const server = {
+      async getPrimaryService(uuid) { if (opts.noService || uuid !== 0x180f) { const e = new Error('No Services matching UUID'); e.name = 'NotFoundError'; throw e; } return { async getCharacteristic(c) { if (opts.noChar || c !== 0x2a19) { const e = new Error('No Characteristics matching UUID'); e.name = 'NotFoundError'; throw e; } return chr; } }; },
+    };
+    return { server, log, chr };
+  };
+  (async () => {
+    // value + change
+    let f = fakeServer({ value: 78 }); const got = [];
+    assert.strictEqual(await WL.attachBattery(f.server, v => got.push(v)), true);
+    assert.deepStrictEqual(got, [78]); assert.strictEqual(f.log.reads, 1); assert.strictEqual(f.log.notifies, 1); assert.strictEqual(f.log.listeners.length, 1);
+    f.log.listeners[0]({ target: { value: dvOf(74) } }); f.log.listeners[0]({ target: { value: dvOf(250) } }); f.log.listeners[0]({ target: { value: dvOf(14) } });
+    assert.deepStrictEqual(got, [78, 74, 14], 'changes arrive, a bad value (250) is ignored');
+    assert.strictEqual(f.log.reads, 1, 'no polling: read once'); assert.strictEqual(f.log.writes, 0, 'nothing is written');
+    // service missing
+    f = fakeServer({ noService: true }); let called = 0;
+    assert.strictEqual(await WL.attachBattery(f.server, () => called++), false); assert.strictEqual(called, 0); assert.strictEqual(f.log.reads, 0);
+    // characteristic missing
+    f = fakeServer({ noChar: true }); assert.strictEqual(await WL.attachBattery(f.server, () => called++), false); assert.strictEqual(called, 0);
+    // a first reading that is not valid shows nothing, but notifications still work
+    f = fakeServer({ value: 200 }); const g2 = []; assert.strictEqual(await WL.attachBattery(f.server, v => g2.push(v)), false); f.log.listeners[0]({ target: { value: dvOf(60) } }); assert.deepStrictEqual(g2, [60]);
+    assert.ok(!/write/i.test(WL.attachBattery.toString()), 'attachBattery has no write call');
+    console.log('battery tests passed');
+  })().catch(e => { console.error(e); process.exit(1); });
+}
 // 12. page wiring: every id the script uses exists once in the markup, no mockup parts, the script compiles
 {
   const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
@@ -183,6 +221,9 @@ assert.strictEqual(WL.firstDripTime([]), null);
   assert.ok(!/@container|MOCKUP|mockbar/.test(html), 'no mockup parts left in the page');
   new Function(code);   // throws on a syntax error
   assert.ok(ids.length > 60, 'the markup has its elements');
+  // R-012: the battery service is requested as OPTIONAL, shown in #bat, and never written
+  assert.ok(/optionalServices:\[WL\.SVC,WL\.BAT_SVC\]/.test(code), 'battery service is an optional service');
+  assert.ok(ids.includes('bat') && ids.includes('bat2') && /WL\.attachBattery\(/.test(code) && !/filters:\[[^\]]*BAT_SVC/.test(code), 'battery shown, not required by the filter');
   // the scale's tare has no stability check: the button itself must say that the platform has to be empty
   assert.ok(/class="zs">empty platform/.test(html) && /can\?'empty platform/.test(code), 'the Tare button says: empty platform');
   // contract C1 v1.1: the only write to the scale is the literal TARE_CMD, inside sendTare()

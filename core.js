@@ -171,6 +171,31 @@
   function rowsToCsv(rows) {
     return toCsv(rows.map(r => ({ t: r[0], g: r[1], f: r[2], raw: r[3], seq: r[4], flags: r[5] })));
   }
+  // ---- Battery level of the scale (standard Battery Service 0x180F, contract C1 v1.2) --------------------------------
+  // Characteristic 0x2A19: one byte, percent 0..100, read + notify (notified only when the value changes). It is an ESTIMATE
+  // from the cell voltage. The page only reads and subscribes; it never writes to this service. If the service or the
+  // characteristic is missing (old firmware, USB-powered unit) nothing is shown: no error, no retry, no polling.
+  const BAT_SVC = 0x180f, BAT_CHR = 0x2a19;
+  function parseBattery(dv) {
+    if (!dv || dv.byteLength < 1) return null;
+    const v = dv.getUint8(0);
+    return v <= 100 ? v : null;
+  }
+  // server: a GATT server (or a fake one in the tests). onLevel(percent) is called with the first reading and on every change.
+  // Returns true when a level was read.
+  async function attachBattery(server, onLevel) {
+    let got = false;
+    try {
+      const svc = await server.getPrimaryService(BAT_SVC);
+      const chr = await svc.getCharacteristic(BAT_CHR);
+      const first = parseBattery(await chr.readValue());          // once after connecting
+      if (first != null) { got = true; onLevel(first); }
+      chr.addEventListener('characteristicvaluechanged', e => { const p = parseBattery(e.target.value); if (p != null) onLevel(p); });
+      await chr.startNotifications();                              // then only changes arrive: no polling
+    } catch (e) { /* no battery service: show nothing */ }
+    return got;
+  }
+
   // ---- Tare over Bluetooth (contract C1 v1.1) ------------------------------------------------------------------
   // The page may write ONE command to the scale's command characteristic: the literal text "t" (tare), only after a tap.
   const TARE_CMD = 't';
@@ -260,6 +285,6 @@
     return m + ':' + String(s).padStart(2, '0') + '.' + d;
   }
 
-  root.WL = { TARE_CMD, parseCmdReply, TareFlow, parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, reasonLabel, CupRemoval, firstDripTime, brewMetrics, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001', CMD: 'b5a10003-5e1d-4c2a-9a3b-2f3c8d6e0001' };
+  root.WL = { BAT_SVC, BAT_CHR, parseBattery, attachBattery, TARE_CMD, parseCmdReply, TareFlow, parsePacket, FlowCalc, MovingAvg, noiseSd, BrewStore, reasonLabel, CupRemoval, firstDripTime, brewMetrics, parseCsv, parseFileName, rowsToCsv, fmtTimer, SeqTracker, RateMeter, toCsv, SVC: 'b5a10001-5e1d-4c2a-9a3b-2f3c8d6e0001', WEIGHT: 'b5a10002-5e1d-4c2a-9a3b-2f3c8d6e0001', CMD: 'b5a10003-5e1d-4c2a-9a3b-2f3c8d6e0001' };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.WL;
 })(typeof self !== 'undefined' ? self : globalThis);

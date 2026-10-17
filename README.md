@@ -62,6 +62,14 @@ The page subscribes to the weight notifications. It also uses the command charac
 `b5a10003-5e1d-4c2a-9a3b-2f3c8d6e0001` (write, replies by notify) for ONE thing: after a tap on **Tare** it writes the
 text `t` and reads the replies (`taring: ...`, `tared`, `busy`). It never writes anything else (no calibration, no OTA).
 
+## Battery
+If the scale offers the standard Battery Service (`0x180F`, characteristic `0x2A19`, one byte, percent), the page shows
+`bat ≈NN %` next to the connection status (in the second row on a phone), in red below 15 %.
+- The percent is an **estimate**: it is derived from the cell voltage of the scale's batteries, and the voltage sags under load.
+- The service is optional: the page asks for it as an optional service, reads the level once after connecting and then only
+  receives changes. It never polls and never writes to this service.
+- A scale without the service (older firmware, USB power) simply shows nothing.
+
 ## Tare
 - The platform must be empty and still for 2 s. The button shows "Taring..." and then "Tared"; the graphs are cleared and the weight starts at 0.
 - Locked while a brew is recording (a tare would zero the log). One command per tap, no automatic retry.

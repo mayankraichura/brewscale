@@ -83,6 +83,9 @@ h1{grid-area:title;white-space:nowrap;margin:0;font-size:20px;line-height:1.1;fo
 #mode:empty{display:none}
 .pill{height:44px;display:flex;align-items:center;gap:9px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:15px;white-space:nowrap}
 .pill.stat{grid-area:stat;min-width:0}
+.bat{color:var(--mu);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:9px;border-left:1px solid var(--line)}
+.bat.low{color:var(--bad);font-weight:700}
+#bat2{display:none}
 .pill.rate{grid-area:rate;height:28px;border:0;background:none;padding:0 4px;color:var(--mu)}
 .dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--mu);flex:none}
 .dot.on{background:var(--ok);border-color:var(--ok)}
@@ -304,6 +307,7 @@ input.chk:disabled{opacity:.35;cursor:not-allowed}
  #cmptab th,#cmptab td{padding-left:7px;padding-right:7px}
 }
 @media (max-width:559px){
+ #bat{display:none}#bat2{display:inline}   /* the status pill is too narrow on a phone */
  #mode{display:none}   /* the chart title says the same */
  #top button{padding:0 12px}
  h1{font-size:19px}
@@ -322,8 +326,8 @@ input.chk:disabled{opacity:.35;cursor:not-allowed}
  <header id="top">
   <button id="menu" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Settings</button>
   <h1>Weight Log <span id="mode"></span></h1>
-  <div class="pill stat"><span class="dot" id="cd"></span><span id="cs">Not connected</span></div>
-  <div class="pill rate"><span><span id="hz">0.0</span> Hz</span><span>lost <span id="lost">0</span></span></div>
+  <div class="pill stat"><span class="dot" id="cd"></span><span id="cs">Not connected</span><span class="bat" id="bat" hidden title="Battery level of the scale: an estimate from the cell voltage (it sags under load)"></span></div>
+  <div class="pill rate"><span><span id="hz">0.0</span> Hz</span><span>lost <span id="lost">0</span></span><span class="bat" id="bat2" hidden title="Battery level of the scale: an estimate from the cell voltage (it sags under load)"></span></div>
   <button id="openSaved"><span><span class="long">Saved brews</span><span class="short">Saved</span> (<span id="savedn">0</span>)</span></button>
   <button id="connect" class="p"><span class="long">Connect to BrewScale</span><span class="short">Connect</span></button>
  </header>
@@ -631,6 +635,7 @@ function render(){
  // top bar
  $('cd').className='dot'+(lostLink?' bad':conn?' on':'');
  $('cs').textContent=lostLink?'Connection lost':conn?'Connected · '+devName:'Not connected';
+ const showBat=conn&&!lostLink&&batLevel!=null;for(const bt of [$('bat'),$('bat2')]){bt.hidden=!showBat;if(showBat){bt.textContent='bat ≈'+batLevel+' %';bt.classList.toggle('low',batLevel<15)}}
  $('hz').textContent=conn&&!lostLink?rate.hz().toFixed(1):'0.0';$('lost').textContent=seqT.lost;
  const cb=$('connect');cb.className=conn?'':'p';cb.disabled=!btOk&&!conn||DEMO;
  cb.querySelector('.long').textContent=DEMO?'Demo':conn?'Disconnect':'Connect to BrewScale';cb.querySelector('.short').textContent=DEMO?'Demo':conn?'Disconnect':'Connect';
@@ -778,27 +783,28 @@ $('savebrew').onclick=()=>{
 };
 
 /* ---------- Bluetooth (Chrome / Bluefy: https or localhost) ---------- */
-let dev=null,reconnects=0,cmdChr=null;
+let dev=null,reconnects=0,cmdChr=null,batLevel=null;   // batLevel: percent (an estimate) from the standard Battery Service, or null
 const tareFlow=new WL.TareFlow(6000);
 async function openGatt(){
  const server=await dev.gatt.connect(),svc=await server.getPrimaryService(WL.SVC),ch=await svc.getCharacteristic(WL.WEIGHT);
  ch.addEventListener('characteristicvaluechanged',e=>{const p=WL.parsePacket(e.target.value);if(p)onSample(p)});
  await ch.startNotifications();
  // The command characteristic is optional (older firmware): the page uses it for the replies to Tare, and writes ONLY the text "t" (contract C1 v1.1).
- cmdChr=null;
+ cmdChr=null;batLevel=null;
  try{const c=await svc.getCharacteristic(WL.CMD);c.addEventListener('characteristicvaluechanged',e=>onCmdReply(new TextDecoder().decode(e.target.value)));await c.startNotifications();cmdChr=c}catch(e){cmdChr=null}
+ WL.attachBattery(server,v=>{batLevel=v;dirty=true});   // optional service: read once, then only changes; missing = show nothing
  connected=true;lostLink=false;reconnects=0;flowCalc.reset();seqT.reset();devName=dev.name||'BrewScale';dirty=true;
 }
 async function onDisconnected(){
- connected=false;lostLink=true;cmdChr=null;tareFlow.reset();dirty=true;
+ connected=false;lostLink=true;cmdChr=null;batLevel=null;tareFlow.reset();dirty=true;
  while(!connected&&dev&&reconnects<60){reconnects++;await new Promise(r=>setTimeout(r,2000));try{await openGatt();return}catch(e){}}
  if(!connected){lostLink=false;dirty=true}
 }
 async function connect(){
  if(!navigator.bluetooth)return;
- if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;lostLink=false;cmdChr=null;tareFlow.reset();dirty=true;return}
+ if(connected){const d=dev;dev=null;d.gatt.disconnect();connected=false;lostLink=false;cmdChr=null;batLevel=null;tareFlow.reset();dirty=true;return}
  try{
-  dev=await navigator.bluetooth.requestDevice({filters:[{services:[WL.SVC]},{name:'BrewScale'}],optionalServices:[WL.SVC]});
+  dev=await navigator.bluetooth.requestDevice({filters:[{services:[WL.SVC]},{name:'BrewScale'}],optionalServices:[WL.SVC,WL.BAT_SVC]});
   dev.addEventListener('gattserverdisconnected',onDisconnected);
   await openGatt();
  }catch(e){dev=null;if(e.name==='NotFoundError')return;
@@ -859,6 +865,7 @@ if(window.ResizeObserver)new ResizeObserver(()=>{dirty=true}).observe($('chartca
 /* ---------- demo (?demo): a simulated scale with five ~50 g pours, so the page works without hardware ---------- */
 let demoTimer=null;
 if(DEMO){
+ batLevel=78;
  let seq=0,w=0,tt=0;const pours=[[2,12],[47,56],[67,75],[87,95],[106,113]];
  demoTimer=setInterval(()=>{tt+=.1;let r=0;for(const[a,b]of pours)if(tt>=a&&tt<b)r=51/(b-a);w+=r*.1;
   demoLast=+(w+(Math.random()-.5)*.6-.3+260).toFixed(2);onSample({seq:seq++&0xFFFF,flags:3,noData:false,tared:true,calibrated:true,g:+(demoLast-demoZero).toFixed(2)})},100);
@@ -870,7 +877,7 @@ function frame(){const n=performance.now();if((dirty||brewing||DEMO||zeroUntil>D
 setInterval(()=>{dirty=true;if(performance.now()-lastR>700){lastR=performance.now();dirty=false;render()}},500);
 render();requestAnimationFrame(frame);
 // test hook (used by the checks in test notes; harmless for users)
-window.WLapp={onSample,store,openCsvFile,tare,onCmdReply,stopDemo(){clearInterval(demoTimer)},test:{setCmdChr(c){cmdChr=c},setConnected(v){connected=v;dirty=true},tareState(){return tareFlow.state}},get state(){return{brewing,connected,cmp,viewBrew,selected,offset,buf}}};
+window.WLapp={onSample,store,openCsvFile,tare,onCmdReply,stopDemo(){clearInterval(demoTimer)},test:{setBattery(v){batLevel=v;dirty=true},setCmdChr(c){cmdChr=c},setConnected(v){connected=v;dirty=true},tareState(){return tareFlow.state}},get state(){return{brewing,connected,cmp,viewBrew,selected,offset,buf}}};
 })();
 </script>
 </body>
